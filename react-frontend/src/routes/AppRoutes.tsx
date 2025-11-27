@@ -18,8 +18,6 @@ import InvestigacionPublicaciones from '@/pages/Investigacion/Publicaciones'
 import InvestigacionAnalisis from '@/pages/Investigacion/Analisis'
 
 import PerfilUsuario from '@/pages/Perfil/PerfilUsuario'
-import PerfilConfiguracion from '@/pages/Perfil/Configuracion'
-import PerfilNotificaciones from '@/pages/Perfil/Notificaciones'
 
 import MainDashboard from '@/pages/MainDashboard'
 
@@ -56,8 +54,6 @@ export default function AppRoutes() {
 
           <Route path="perfil">
             <Route index element={<PerfilUsuario />} />
-            <Route path="configuracion" element={<PerfilConfiguracion />} />
-            <Route path="notificaciones" element={<PerfilNotificaciones />} />
           </Route>
         </Route>
 

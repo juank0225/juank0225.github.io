@@ -1,19 +1,59 @@
 import { useState, useEffect } from "react"
 import FotoTecnoparque from "../assets/FotoTecnoparque.jpg"
 
+// Importar el servicio de auth
+import { authService, type LoginData } from "../services/authService"
+
 export default function Login() {
   const [hover, setHover] = useState(false)
   const [visible, setVisible] = useState(false)
   const [focusButton, setFocusButton] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [formData, setFormData] = useState<LoginData>({
+    usuario: "",
+    password: ""
+  })
 
   useEffect(() => {
-    // Pequeña animación de entrada
     setTimeout(() => setVisible(true), 100)
   }, [])
 
-  const handleLogin = () => {
-    // Navegar a MainDashboard
-    window.location.href = "#/app"
+  const handleInputChange = (field: keyof LoginData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+    setError("") // Limpiar error al escribir
+  }
+
+  const handleLogin = async () => {
+    if (!formData.usuario || !formData.password) {
+      setError("Usuario y contraseña son requeridos")
+      return
+    }
+
+    setLoading(true)
+    setError("")
+
+    try {
+      const response = await authService.login(formData)
+      
+      // Guardar token y user en localStorage
+      localStorage.setItem("token", response.access_token)
+      localStorage.setItem("user", JSON.stringify(response.user))
+      
+      // Navegar al dashboard
+authService.redirectToApp();
+    } catch (err) {
+      setError("Usuario o contraseña incorrectos")
+      console.error("Login error:", err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleLogin()
+    }
   }
 
   return (
@@ -31,7 +71,7 @@ export default function Login() {
         position: "relative",
       }}
     >
-      {/* Capa semitransparente para mejorar contraste */}
+      {/* Capa semitransparente */}
       <div
         style={{
           position: "absolute",
@@ -76,6 +116,23 @@ export default function Login() {
           Bienvenido 👋
         </h1>
 
+        {/* Mensaje de error */}
+        {error && (
+          <div style={{
+            width: "100%",
+            padding: "10px",
+            backgroundColor: "rgba(255,0,0,0.1)",
+            border: "1px solid rgba(255,0,0,0.3)",
+            borderRadius: "8px",
+            color: "#d00",
+            fontSize: "0.9rem",
+            marginBottom: "15px",
+            textAlign: "center"
+          }}>
+            {error}
+          </div>
+        )}
+
         <div style={{ width: "100%", marginBottom: "20px" }}>
           <label
             style={{
@@ -89,6 +146,9 @@ export default function Login() {
           <input
             type="text"
             placeholder="Ingresa tu usuario"
+            value={formData.usuario}
+            onChange={(e) => handleInputChange("usuario", e.target.value)}
+            onKeyPress={handleKeyPress}
             style={{
               width: "100%",
               padding: "12px 15px",
@@ -121,6 +181,9 @@ export default function Login() {
           <input
             type="password"
             placeholder="Ingresa tu contraseña"
+            value={formData.password}
+            onChange={(e) => handleInputChange("password", e.target.value)}
+            onKeyPress={handleKeyPress}
             style={{
               width: "100%",
               padding: "12px 15px",
@@ -146,25 +209,27 @@ export default function Login() {
           onFocus={() => setFocusButton(true)}
           onBlur={() => setFocusButton(false)}
           onClick={handleLogin}
+          disabled={loading}
           style={{
             width: "100%",
-            backgroundColor: hover ? "#2e8500" : "#39A900",
+            backgroundColor: loading ? "#ccc" : (hover ? "#2e8500" : "#39A900"),
             color: "white",
             fontWeight: 600,
             fontSize: "1rem",
             border: "none",
             borderRadius: "10px",
             padding: "12px",
-            cursor: "pointer",
-            boxShadow: hover
+            cursor: loading ? "not-allowed" : "pointer",
+            boxShadow: hover && !loading
               ? "0 5px 15px rgba(57,169,0,0.4)"
               : "0 4px 10px rgba(57,169,0,0.25)",
             outline: focusButton ? "3px solid #D7FFD9" : "none",
             outlineOffset: "2px",
             transition: "all 0.3s ease",
+            opacity: loading ? 0.7 : 1,
           }}
         >
-          Iniciar Sesión
+          {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
         </button>
 
         <p

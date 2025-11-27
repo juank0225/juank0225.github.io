@@ -1,17 +1,50 @@
-import userDefault from "@/assets/user-default.svg"
+import { useState, useEffect } from "react";
+import userDefault from "@/assets/user-default.svg";
+import { authService } from "../../services/authService"; // Ajusta la ruta según tu estructura
+
+interface User {
+  id: number;
+  nombre: string;
+  apellido: string;
+  correo: string;
+  celular?: string;
+  tipoDoc: string;
+  numDoc: string;
+  estado: string;
+  ubicacion?: string;
+  rol: {
+    nombreRol: string;
+  };
+  linea?: {
+    nombreLinea: string;
+  };
+}
 
 export default function PerfilUsuario() {
-  const perfil = {
-    nombre: "Juan Cardenas",
-    apellido: "Pérez",
-    email: "JuanC@example.com",
-    rol: "Administrator",
-    ubicacion: "Bogotá, Colombia",
-    fotoPerfil: userDefault,
-    tipoDocumento: "CC",
-    numeroDocumento: "1234567890",
-    celular: "+57 300 1234567",
-    estado: "Activo"
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const currentUser = authService.getCurrentUser();
+    if (currentUser) {
+      setUser(currentUser);
+    }
+  }, []);
+
+  const handleLogout = () => {
+    authService.logout();
+  };
+
+  const handleEditProfile = () => {
+    // Aquí puedes redirigir a una pantalla de edición o mostrar modal
+    console.log("Editar perfil");
+  };
+
+  if (!user) {
+    return (
+      <div style={{ padding: '20px', textAlign: 'center' }}>
+        <p>Cargando perfil...</p>
+      </div>
+    );
   }
 
   return (
@@ -33,7 +66,7 @@ export default function PerfilUsuario() {
         Tu perfil y Datos Personales
       </h1>
 
-      {/* Contenedor principal - flex column en móvil, row en desktop */}
+      {/* Contenedor principal */}
       <div style={{ 
         display: 'flex', 
         flexDirection: 'column',
@@ -65,7 +98,7 @@ export default function PerfilUsuario() {
           }}>
             <img
               src={userDefault}
-              alt={perfil.nombre}
+              alt={user.nombre}
               style={{
                 width: '100%',
                 height: '100%',
@@ -82,7 +115,7 @@ export default function PerfilUsuario() {
             color: '#1f2937',
             textAlign: 'center'
           }}>
-            {perfil.nombre}
+            {user.nombre} {user.apellido}
           </h3>
           
           <p style={{ 
@@ -92,7 +125,7 @@ export default function PerfilUsuario() {
             textAlign: 'center',
             wordBreak: 'break-word'
           }}>
-            {perfil.email}
+            {user.correo}
           </p>
           
           <p style={{ 
@@ -101,7 +134,7 @@ export default function PerfilUsuario() {
             color: '#1f2937',
             textAlign: 'center'
           }}>
-            {perfil.rol}
+            {user.rol.nombreRol}
           </p>
           
           <p style={{ 
@@ -110,7 +143,7 @@ export default function PerfilUsuario() {
             color: '#6b7280',
             textAlign: 'center'
           }}>
-            {perfil.ubicacion}
+            {user.linea?.nombreLinea || 'Sin línea asignada'}
           </p>
 
           {/* Botones */}
@@ -121,34 +154,40 @@ export default function PerfilUsuario() {
             width: '100%',
             maxWidth: '280px'
           }}>
-            <button style={{
-              width: '100%',
-              padding: '12px 0',
-              borderRadius: '8px',
-              backgroundColor: '#39a900',
-              color: '#ffffff',
-              border: 'none',
-              fontSize: '14px',
-              fontWeight: '500',
-              cursor: 'pointer',
-              fontFamily: 'Inter, sans-serif'
-            }}>
+            <button 
+              onClick={handleEditProfile}
+              style={{
+                width: '100%',
+                padding: '12px 0',
+                borderRadius: '8px',
+                backgroundColor: '#39a900',
+                color: '#ffffff',
+                border: 'none',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                fontFamily: 'Inter, sans-serif'
+              }}
+            >
               Editar perfil
             </button>
 
-            <button style={{
-              width: '100%',
-              padding: '12px 0',
-              borderRadius: '8px',
-              backgroundColor: '#f3f4f6',
-              color: '#1f2937',
-              border: 'none',
-              fontSize: '14px',
-              fontWeight: '500',
-              cursor: 'pointer',
-              fontFamily: 'Inter, sans-serif'
-            }}>
-              Configuración
+            <button 
+              onClick={handleLogout}
+              style={{
+                width: '100%',
+                padding: '12px 0',
+                borderRadius: '8px',
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                fontFamily: 'Inter, sans-serif'
+              }}
+            >
+              Cerrar Sesión
             </button>
           </div>
         </div>
@@ -170,7 +209,7 @@ export default function PerfilUsuario() {
             Datos Personales
           </h2>
 
-          {/* Grid de datos - 1 columna en móvil, 2 en tablet+ */}
+          {/* Grid de datos */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
@@ -190,7 +229,7 @@ export default function PerfilUsuario() {
                 fontSize: 'clamp(14px, 3vw, 17px)',
                 wordBreak: 'break-word'
               }}>
-                {perfil.nombre}
+                {user.nombre}
               </span>
             </div>
 
@@ -208,7 +247,7 @@ export default function PerfilUsuario() {
                 fontSize: 'clamp(14px, 3vw, 17px)',
                 wordBreak: 'break-word'
               }}>
-                {perfil.email}
+                {user.correo}
               </span>
             </div>
 
@@ -226,7 +265,7 @@ export default function PerfilUsuario() {
                 fontSize: 'clamp(14px, 3vw, 17px)',
                 wordBreak: 'break-word'
               }}>
-                {perfil.apellido}
+                {user.apellido}
               </span>
             </div>
 
@@ -244,7 +283,7 @@ export default function PerfilUsuario() {
                 fontSize: 'clamp(14px, 3vw, 17px)',
                 wordBreak: 'break-word'
               }}>
-                {perfil.celular}
+                {user.celular || 'No especificado'}
               </span>
             </div>
 
@@ -255,14 +294,14 @@ export default function PerfilUsuario() {
                 fontWeight: '600', 
                 fontSize: 'clamp(14px, 3vw, 17px)',
               }}>
-                Tipo doc:
+                Tipo documento:
               </span>
               <span style={{ 
                 color: '#1f2937', 
                 fontSize: 'clamp(14px, 3vw, 17px)',
                 wordBreak: 'break-word'
               }}>
-                {perfil.tipoDocumento}
+                {user.tipoDoc}
               </span>
             </div>
 
@@ -280,7 +319,7 @@ export default function PerfilUsuario() {
                 fontSize: 'clamp(14px, 3vw, 17px)',
                 wordBreak: 'break-word'
               }}>
-                {perfil.estado}
+                {user.estado}
               </span>
             </div>
 
@@ -291,14 +330,14 @@ export default function PerfilUsuario() {
                 fontWeight: '600', 
                 fontSize: 'clamp(14px, 3vw, 17px)',
               }}>
-                N° doc:
+                N° documento:
               </span>
               <span style={{ 
                 color: '#1f2937', 
                 fontSize: 'clamp(14px, 3vw, 17px)',
                 wordBreak: 'break-word'
               }}>
-                {perfil.numeroDocumento}
+                {user.numDoc}
               </span>
             </div>
 
@@ -316,31 +355,30 @@ export default function PerfilUsuario() {
                 fontSize: 'clamp(14px, 3vw, 17px)',
                 wordBreak: 'break-word'
               }}>
-                {perfil.ubicacion}
+                {user.ubicacion || 'No especificada'}
+              </span>
+            </div>
+
+            {/* Línea asignada */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <span style={{ 
+                color: '#39a900', 
+                fontWeight: '600', 
+                fontSize: 'clamp(14px, 3vw, 17px)',
+              }}>
+                Línea asignada:
+              </span>
+              <span style={{ 
+                color: '#1f2937', 
+                fontSize: 'clamp(14px, 3vw, 17px)',
+                wordBreak: 'break-word'
+              }}>
+                {user.linea?.nombreLinea || 'Sin línea asignada'}
               </span>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Media query para desktop usando @media */}
-      <style>
-        {`
-          @media (min-width: 768px) {
-            .perfil-container {
-              flex-direction: row !important;
-              align-items: flex-start !important;
-            }
-            .perfil-card {
-              width: 280px !important;
-              flex-shrink: 0 !important;
-            }
-            .datos-card {
-              flex: 1 !important;
-            }
-          }
-        `}
-      </style>
     </div>
-  )
+  );
 }
