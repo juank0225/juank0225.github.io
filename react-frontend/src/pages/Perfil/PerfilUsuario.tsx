@@ -232,7 +232,23 @@ export default function PerfilUsuario() {
                 {user.nombre}
               </span>
             </div>
-
+{/* Apellido */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <span style={{ 
+                color: '#39a900', 
+                fontWeight: '600', 
+                fontSize: 'clamp(14px, 3vw, 17px)',
+              }}>
+                Apellido:
+              </span>
+              <span style={{ 
+                color: '#1f2937', 
+                fontSize: 'clamp(14px, 3vw, 17px)',
+                wordBreak: 'break-word'
+              }}>
+                {user.apellido}
+              </span>
+            </div>
             {/* Correo */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <span style={{ 
@@ -251,23 +267,7 @@ export default function PerfilUsuario() {
               </span>
             </div>
 
-            {/* Apellido */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <span style={{ 
-                color: '#39a900', 
-                fontWeight: '600', 
-                fontSize: 'clamp(14px, 3vw, 17px)',
-              }}>
-                Apellido:
-              </span>
-              <span style={{ 
-                color: '#1f2937', 
-                fontSize: 'clamp(14px, 3vw, 17px)',
-                wordBreak: 'break-word'
-              }}>
-                {user.apellido}
-              </span>
-            </div>
+            
 
             {/* Celular */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
