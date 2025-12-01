@@ -1,132 +1,123 @@
 import { useState, useMemo, useEffect } from 'react';
 import './estilosTecnoacademia.css';
+import { tecnoAcademiaService, type IndicadorTecnoAcademia, type EstadisticasTecnoAcademia } from '../../services/tecnoAcademiaService';
 
 export default function Dashboard() {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [selectedIndicador, setSelectedIndicador] = useState<{ label: string; segments: { label: string; value: number; color: string }[] } | null>(null);
   const [animated, setAnimated] = useState(false);
+  const [datosReales, setDatosReales] = useState<IndicadorTecnoAcademia[]>([]);
+  const [estadisticas, setEstadisticas] = useState<EstadisticasTecnoAcademia | null>(null);
+  const [cargando, setCargando] = useState(true);
+  const [vista, setVista] = useState('semana');
 
   const primaryColor = "#39a900";
   const accentColor = "#e8f5e0";
 
-  const items = [
-    {
-      label: "Número de instituciones educativas",
-      segments: [
-        { label: "Urbanas", value: 98, color: "#39a900" },
-        { label: "Rurales", value: 58, color: "#5bc41a" }
-      ]
-    },
-    {
-      label: "Instituciones educativas articuladas",
-      segments: [
-        { label: "Técnicas", value: 74, color: "#39a900" },
-        { label: "Tecnológicas", value: 50, color: "#7ed957" }
-      ]
-    },
-    {
-      label: "Número de estudiantes matriculados",
-      segments: [
-        { label: "Técnicos", value: 1523, color: "#39a900" },
-        { label: "Tecnólogos", value: 894, color: "#5bc41a" },
-        { label: "Auxiliares", value: 430, color: "#9de67f" }
-      ]
-    },
-    {
-      label: "Aprendices certificados",
-      segments: [
-        { label: "2024", value: 1124, color: "#39a900" },
-        { label: "2023", value: 732, color: "#7ed957" }
-      ]
-    },
-    {
-      label: "Proyectos de investigación",
-      segments: [
-        { label: "En curso", value: 52, color: "#39a900" },
-        { label: "Finalizados", value: 35, color: "#5bc41a" }
-      ]
-    },
-    {
-      label: "Aprendices en cadena formativa",
-      segments: [
-        { label: "Nivel 1", value: 678, color: "#39a900" },
-        { label: "Nivel 2", value: 534, color: "#5bc41a" },
-        { label: "Nivel 3", value: 422, color: "#9de67f" }
-      ]
-    },
-    {
-      label: "EDTS",
-      segments: [
-        { label: "Activos", value: 187, color: "#39a900" },
-        { label: "Pendientes", value: 47, color: "#7ed957" }
-      ]
-    },
-    {
-      label: "Número de proyectos tecnológicos fomentando el aprendizaje basado en proyectos en estudiantes",
-      segments: [
-        { label: "Desarrollo", value: 156, color: "#39a900" },
-        { label: "Implementación", value: 98, color: "#5bc41a" },
-        { label: "Evaluación", value: 58, color: "#9de67f" }
-      ]
-    },
-    {
-      label: "Estudiantes destacados",
-      segments: [
-        { label: "Excelencia", value: 234, color: "#39a900" },
-        { label: "Sobresaliente", value: 194, color: "#7ed957" }
-      ]
-    },
-    {
-      label: "Estrategia de fortalecimiento y mentorías para fortalecer el talento de los estudiantes",
-      segments: [
-        { label: "Individual", value: 312, color: "#39a900" },
-        { label: "Grupal", value: 255, color: "#5bc41a" }
-      ]
-    },
-    {
-      label: "Participación en ferias",
-      segments: [
-        { label: "Nacionales", value: 54, color: "#39a900" },
-        { label: "Regionales", value: 38, color: "#7ed957" }
-      ]
-    },
-    {
-      label: "Visitas a centros de formación",
-      segments: [
-        { label: "Programadas", value: 134, color: "#39a900" },
-        { label: "Realizadas", value: 44, color: "#5bc41a" }
-      ]
-    },
-    {
-      label: "Participación en eventos y actividades de innovación tecnológica",
-      segments: [
-        { label: "Workshops", value: 67, color: "#39a900" },
-        { label: "Conferencias", value: 48, color: "#5bc41a" },
-        { label: "Hackathons", value: 30, color: "#9de67f" }
-      ]
-    },
-    {
-      label: "Número de talleres",
-      segments: [
-        { label: "Prácticos", value: 167, color: "#39a900" },
-        { label: "Teóricos", value: 122, color: "#7ed957" }
-      ]
-    },
-    {
-      label: "Proyectos integrados",
-      segments: [
-        { label: "Multidisciplinarios", value: 124, color: "#39a900" },
-        { label: "Especializados", value: 79, color: "#5bc41a" }
-      ]
+  // Cargar datos reales
+  useEffect(() => {
+    cargarDatos();
+  }, [vista]);
+
+  const cargarDatos = async () => {
+    try {
+      setCargando(true);
+      const [indicadores, stats] = await Promise.all([
+        tecnoAcademiaService.obtenerIndicadores(vista),
+        tecnoAcademiaService.obtenerEstadisticas(vista)
+      ]);
+      
+      setDatosReales(indicadores);
+      setEstadisticas(stats);
+    } catch (error) {
+      console.error('Error cargando datos:', error);
+    } finally {
+      setCargando(false);
     }
-  ];
+  };
+
+  // Generar items dinámicamente desde datos reales
+  const items = useMemo(() => {
+    if (cargando || !datosReales.length || !estadisticas) {
+      return [
+        {
+          label: "Número de instituciones educativas",
+          segments: [
+            { label: "Cargando...", value: 0, color: "#39a900" }
+          ]
+        }
+      ];
+    }
+
+    // Usar el ÚLTIMO registro para datos actuales
+    const ultimoRegistro = datosReales[datosReales.length - 1];
+    
+    return [
+      {
+        label: "Número de instituciones educativas",
+        segments: [
+          { label: "Activas", value: ultimoRegistro.numInstituciones, color: "#39a900" },
+          { label: "Articuladas", value: ultimoRegistro.instArticuladas, color: "#5bc41a" }
+        ]
+      },
+      {
+        label: "Estudiantes matriculados",
+        segments: [
+          { label: "Matriculados", value: ultimoRegistro.numEstudiantesMatriculados, color: "#39a900" },
+          { label: "Certificados", value: ultimoRegistro.aprendicesCertificados, color: "#7ed957" }
+        ]
+      },
+      {
+        label: "Proyectos de investigación",
+        segments: [
+          { label: "Proyectos", value: ultimoRegistro.proyectosInvestigacion, color: "#39a900" },
+          { label: "Integrados", value: ultimoRegistro.proyectosIntegrados, color: "#5bc41a" }
+        ]
+      },
+      {
+        label: "Formación y mentorías",
+        segments: [
+          { label: "Mentorías", value: ultimoRegistro.mentorias, color: "#39a900" },
+          { label: "Estudiantes destacados", value: ultimoRegistro.estudiantesDestacados, color: "#7ed957" }
+        ]
+      },
+      {
+        label: "Talleres y actividades",
+        segments: [
+          { label: "Talleres", value: ultimoRegistro.numTalleres, color: "#39a900" },
+          { label: "Actividades innovación", value: ultimoRegistro.actividadesInnovacion, color: "#5bc41a" }
+        ]
+      },
+      {
+        label: "Participación en eventos",
+        segments: [
+          { label: "Ferias", value: ultimoRegistro.participacionFerias, color: "#39a900" },
+          { label: "Visitas centros", value: ultimoRegistro.visitasCentrosFormacion, color: "#7ed957" }
+        ]
+      },
+      {
+        label: "EDTS y cadena formativa",
+        segments: [
+          { label: "EDTS", value: ultimoRegistro.edts, color: "#39a900" },
+          { label: "En cadena formativa", value: ultimoRegistro.aprendicesCadenaFormativa, color: "#5bc41a" }
+        ]
+      },
+      {
+        label: "Proyectos tecnológicos ABP",
+        segments: [
+          { label: "Proyectos ABP", value: ultimoRegistro.proyectosTecnologicosAbp, color: "#39a900" },
+          { label: "Actividades", value: ultimoRegistro.actividadesInnovacion, color: "#5bc41a" }
+        ]
+      }
+    ];
+  }, [datosReales, estadisticas, cargando]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return items;
     return items.filter((it) => it.label.toLowerCase().includes(q));
-  }, [query]);
+  }, [query, items]);
 
   useEffect(() => {
     if (selectedIndex !== null) {
@@ -295,6 +286,27 @@ export default function Dashboard() {
     );
   };
 
+  // Estado de carga
+  if (cargando) {
+    return (
+      <div className="dashboard-container">
+        <h1 className="dashboard-title" style={{ color: '#39a900', fontWeight: 'bold', textAlign: 'center', padding: '0 0.5rem' }}>
+          Indicadores Tecnoacademia
+        </h1>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '400px',
+          color: '#39a900',
+          fontSize: '18px'
+        }}>
+          Cargando datos...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-container">
       <h1 className="dashboard-title" style={{ color: '#39a900', 
@@ -303,6 +315,91 @@ export default function Dashboard() {
           padding: '0 0.5rem' }}>
         Indicadores Tecnoacademia
       </h1>
+
+      {/* Estadísticas rápidas */}
+      {estadisticas && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '1rem',
+          marginBottom: '2rem',
+          padding: '0 0.5rem'
+        }}>
+          <div style={{
+            backgroundColor: '#e8f5e9',
+            padding: '1rem',
+            borderRadius: '8px',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '0.9rem', color: '#666' }}>Total Instituciones</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#39a900' }}>
+              {estadisticas.totalInstituciones}
+            </div>
+          </div>
+          <div style={{
+            backgroundColor: '#e8f5e9',
+            padding: '1rem',
+            borderRadius: '8px',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '0.9rem', color: '#666' }}>Total Estudiantes</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#39a900' }}>
+              {estadisticas.totalEstudiantes}
+            </div>
+          </div>
+          <div style={{
+            backgroundColor: '#e8f5e9',
+            padding: '1rem',
+            borderRadius: '8px',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '0.9rem', color: '#666' }}>Certificados</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#39a900' }}>
+              {estadisticas.totalCertificados}
+            </div>
+          </div>
+          <div style={{
+            backgroundColor: '#e8f5e9',
+            padding: '1rem',
+            borderRadius: '8px',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '0.9rem', color: '#666' }}>Registros</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#39a900' }}>
+              {estadisticas.cantidadRegistros}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Selector de vista */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        gap: '1rem',
+        marginBottom: '2rem',
+        padding: '0 0.5rem'
+      }}>
+        {['semana', 'mes', 'año'].map((periodo) => (
+          <button
+            key={periodo}
+            onClick={() => setVista(periodo)}
+            style={{
+              padding: '0.75rem 1.5rem',
+              borderRadius: '8px',
+              border: `2px solid ${vista === periodo ? '#39a900' : '#e0e0e0'}`,
+              backgroundColor: vista === periodo ? '#39a900' : '#fff',
+              color: vista === periodo ? '#fff' : '#333',
+              fontWeight: '600',
+              fontSize: '14px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            {periodo.charAt(0).toUpperCase() + periodo.slice(1)}
+          </button>
+        ))}
+      </div>
       
       <div className="dashboard-content">
         {/* Panel lateral de indicadores */}
