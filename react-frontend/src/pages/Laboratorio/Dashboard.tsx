@@ -1,4 +1,12 @@
-import { useState, useEffect } from "react"
+// src/components/laboratorio/DashboardLaboratorio.tsx
+import { useState, useEffect, useMemo } from "react"
+import {
+  laboratorioService,
+  type IndicadorLaboratorio,
+  type EstadisticasLaboratorio,
+} from "../../services/laboratorioService" // ASEGÚRATE DE QUE LA RUTA SEA CORRECTA
+
+// ------------------ INTERFACES (Definidas en el Dashboard original) ------------------
 
 type IndicadorMetaActual = {
   id: string
@@ -6,7 +14,7 @@ type IndicadorMetaActual = {
   actual: number
   meta: number
   unidad: string
-  tipo: "porcentaje" | "moneda"
+  tipo: "porcentaje" | "moneda" | "numero" // Añadido 'numero' para claridad
 }
 
 type IndicadorSimple = {
@@ -24,6 +32,8 @@ type IndicadorCualitativo = {
   estado: "Cumplido" | "En riesgo" | "Sin dato"
 }
 
+// ------------------ COMPONENTE PRINCIPAL ------------------
+
 export default function Dashboard() {
   const [windowWidth, setWindowWidth] = useState(
     typeof window !== "undefined" ? window.innerWidth : 1200
@@ -32,7 +42,14 @@ export default function Dashboard() {
   const [hoverMetaId, setHoverMetaId] = useState<string | null>(null)
   const [hoverCoberturaId, setHoverCoberturaId] = useState<string | null>(null)
   const [hoverKpi, setHoverKpi] = useState<string | null>(null)
+  const [cargando, setCargando] = useState(true)
 
+  // ⭐️ NUEVOS ESTADOS PARA LOS DATOS REALES DEL BACKEND ⭐️
+  const [datosReales, setDatosReales] = useState<IndicadorLaboratorio[]>([])
+  const [estadisticas, setEstadisticas] = useState<EstadisticasLaboratorio | null>(null)
+  const [vista, setVista] = useState('mes'); // Periodo inicial: mes
+
+  // Efecto para redimensionamiento (se mantiene)
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth)
     window.addEventListener("resize", handleResize)
@@ -42,117 +59,164 @@ export default function Dashboard() {
   const isMobile = windowWidth < 640
   const isTablet = windowWidth >= 640 && windowWidth < 1024
 
-  // ------------------ DATOS DEL LABORATORIO ------------------
+  // ⭐️ EFECTO PARA CARGAR DATOS REALES ⭐️
+  useEffect(() => {
+    const cargarDatos = async () => {
+      try {
+        setCargando(true)
+        // Puedes cambiar 'mes' por otra vista o usar el estado 'vista'
+        const [indicadores, stats] = await Promise.all([
+          laboratorioService.obtenerIndicadores(vista),
+          laboratorioService.obtenerEstadisticas(vista),
+        ])
 
-  const indicadoresMetaActual: IndicadorMetaActual[] = [
-    {
-      id: "plazos",
-      titulo: "Cumplimiento de plazos",
-      actual: 100,
-      meta: 95,
-      unidad: "%",
-      tipo: "porcentaje",
-    },
-    {
-      id: "satisfaccion",
-      titulo: "Satisfacción del cliente",
-      actual: 0,
-      meta: 90,
-      unidad: "%",
-      tipo: "porcentaje",
-    },
-    {
-      id: "capacitacion",
-      titulo: "Capacitación del personal",
-      actual: 0,
-      meta: 90,
-      unidad: "%",
-      tipo: "porcentaje",
-    },
-    {
-      id: "competencias",
-      titulo: "Competencias del personal",
-      actual: 90,
-      meta: 100,
-      unidad: "%",
-      tipo: "porcentaje",
-    },
-    {
-      id: "ventas",
-      titulo: "Ventas centro de costos",
-      actual: 9_082_100,
-      meta: 29_000_000,
-      unidad: "COP",
-      tipo: "moneda",
-    },
-  ]
+        setDatosReales(indicadores)
+        setEstadisticas(stats)
+      } catch (error) {
+        console.error("Error cargando datos de Laboratorio:", error)
+        setDatosReales([])
+        setEstadisticas(null)
+      } finally {
+        setCargando(false)
+      }
+    }
+    cargarDatos()
+  }, [vista]) // Recargar si cambia el periodo (semana, mes, año)
 
-  const indicadoresCobertura: IndicadorSimple[] = [
-    {
-      id: "aprendices_porcentaje",
-      titulo: "Aprendices atendidos",
-      valor: 16.64,
-      unidad: "%",
-      detalle: "Meta mínima 15% de los aprendices matriculados.",
-    },
-    {
-      id: "aprendices_practicas",
-      titulo: "Prácticas y proyectos de formación",
-      valor: 165,
-      unidad: "aprendices",
-      detalle:
-        "Aprendices atendidos en prácticas de laboratorio y aseguramiento metrológico.",
-    },
-    {
-      id: "usuarios_externos",
-      titulo: "Usuarios externos atendidos",
-      valor: 15,
-      unidad: "usuarios",
-      detalle: "Personas, empresas y asociaciones atendidas en el laboratorio.",
-    },
-    {
-      id: "apoyo_emprendedores",
-      titulo: "Apoyo a emprendedores",
-      valor: 1,
-      unidad: "proyecto",
-      detalle:
-        "Colaboración con FENAVI en aseguramiento metrológico para el sector avícola.",
-    },
-  ]
+  // ------------------ DATOS CALCULADOS / MAPEO DE DATOS REALES ------------------
 
-  const indicadoresCualitativos: IndicadorCualitativo[] = [
-    {
-      id: "confidencialidad",
-      titulo: "Confidencialidad e imparcialidad",
-      descripcion:
-        "Garantizar la confidencialidad, integridad, imparcialidad e independencia en los servicios prestados. No se han presentado situaciones que comprometan estos principios.",
-      estado: "Cumplido",
-    },
-    {
-      id: "competencias_detalle",
-      titulo: "Gestión de competencias del personal",
-      descripcion:
-        "Se evalúan los requisitos de competencia para cada función que influye en los resultados del laboratorio, incluyendo educación, calificación, formación, conocimiento técnico, habilidades y experiencia.",
-      estado: "En riesgo",
-    },
-    {
-      id: "mantenimiento",
-      titulo: "Mantenimiento y equipos",
-      descripcion:
-        "Mantener las instalaciones y el equipo requerido para satisfacer los requisitos del cliente dentro del alcance del laboratorio. Se asignaron $41.000.000 para mantenimiento y calibración de equipos en 2025.",
-      estado: "Cumplido",
-    },
-    {
-      id: "mejoras",
-      titulo: "Proyectos de mejora 2026",
-      descripcion:
-        "Se proyecta para 2026 una mejora en la incertidumbre de medida para temperatura y presión como parte de los proyectos de mejora del laboratorio.",
-      estado: "Sin dato",
-    },
-  ]
+  // Usamos useMemo para generar los arrays de indicadores basados en datosReales y estadísticas
+  const { indicadoresMetaActual, indicadoresCobertura, indicadoresCualitativos } = useMemo(() => {
+    
+    // Si aún está cargando o no hay datos, devolvemos el array vacío para evitar errores
+    if (cargando || !estadisticas) {
+      // Devolvemos el esqueleto de las estructuras, pero vacías.
+      return {
+          indicadoresMetaActual: [],
+          indicadoresCobertura: [],
+          indicadoresCualitativos: [],
+      };
+    }
 
-  // ------------------ HELPERS ------------------
+    const mapMetaActual: IndicadorMetaActual[] = [
+      {
+        id: "plazos",
+        titulo: "Cumplimiento de plazos",
+        actual: estadisticas.totalPlazosCumplidos, // Usamos el total de plazos cumplidos como valor 'actual'
+        meta: 100, // Meta hardcodeada (ajusta según tus metas)
+        unidad: "eventos",
+        tipo: "numero",
+      },
+      {
+        id: "satisfaccion",
+        titulo: "Satisfacción del cliente",
+        actual: estadisticas.promedioSatisfaccion, // Usamos el promedio de satisfacción
+        meta: 90, // Meta hardcodeada (ej: 90%)
+        unidad: "%",
+        tipo: "porcentaje",
+      },
+      {
+        id: "capacitacion",
+        titulo: "Capacitación del personal",
+        actual: estadisticas.totalCapacitacion, // Total de horas/eventos de capacitación
+        meta: 50, // Meta hardcodeada (ej: 50 horas o 50 eventos)
+        unidad: "eventos",
+        tipo: "numero",
+      },
+      {
+        id: "competencias",
+        titulo: "Competencias del personal",
+        // No tenemos una estadística calculada directamente, asumiremos un promedio o un valor
+        actual: 90, // Valor placeholder, deberías calcularlo o obtenerlo del backend
+        meta: 100,
+        unidad: "%",
+        tipo: "porcentaje",
+      },
+      {
+        id: "ventas",
+        titulo: "Ventas centro de costos",
+        // Aquí necesitas la suma de ventasCostos. Si el backend no la devuelve, la calculamos del array de datosReales
+        actual: datosReales.reduce((sum, item) => sum + parseFloat(item.ventasCostos.toString()), 0),
+        meta: 29_000_000, // Meta hardcodeada
+        unidad: "COP",
+        tipo: "moneda",
+      },
+    ]
 
+    const mapCobertura: IndicadorSimple[] = [
+      {
+        id: "aprendices_porcentaje",
+        titulo: "Aprendices atendidos",
+        // Esto requiere el total de aprendices matriculados. Si no lo tienes, usamos un placeholder.
+        valor: 16.64, // Placeholder
+        unidad: "%",
+        detalle: "Meta mínima 15% de los aprendices matriculados.",
+      },
+      {
+        id: "aprendices_practicas",
+        titulo: "Prácticas y proyectos de formación",
+        valor: estadisticas.totalAprendices, // Total de atención a aprendices
+        unidad: "aprendices",
+        detalle: "Aprendices atendidos en prácticas de laboratorio y aseguramiento metrológico.",
+      },
+      {
+        id: "usuarios_externos",
+        titulo: "Usuarios externos atendidos",
+        // Calculamos la suma de 'usuarios_externos'
+        valor: datosReales.reduce((sum, item) => sum + item.usuariosExternos, 0),
+        unidad: "usuarios",
+        detalle: "Personas, empresas y asociaciones atendidas en el laboratorio.",
+      },
+      {
+        id: "apoyo_emprendedores",
+        titulo: "Apoyo a emprendedores",
+        // Calculamos la suma de 'apoyo_emprendedores'
+        valor: datosReales.reduce((sum, item) => sum + item.apoyoEmprendedores, 0),
+        unidad: "proyectos/eventos",
+        detalle: "Apoyos o colaboraciones registrados.",
+      },
+    ]
+
+    const mapCualitativos: IndicadorCualitativo[] = [
+      {
+        id: "confidencialidad",
+        titulo: "Confidencialidad e imparcialidad",
+        descripcion: "Garantizar la confidencialidad, integridad, imparcialidad e independencia en los servicios prestados. Se registra si el valor de confidencialidad_imparcialidad es mayor a 0 en el periodo.",
+        // Lógica de estado simple: 'Cumplido' si hay al menos un registro > 0.
+        estado: datosReales.some(d => d.confidencialidadImparcialidad > 0) ? "Cumplido" : "Sin dato",
+      },
+      {
+        id: "mantenimiento",
+        titulo: "Mantenimiento y equipos",
+        descripcion: `Mantener las instalaciones y el equipo requerido. Se registraron ${datosReales.reduce((sum, item) => sum + item.mantenimientoEquipos, 0)} eventos de mantenimiento.`,
+        estado: datosReales.some(d => d.mantenimientoEquipos > 0) ? "Cumplido" : "En riesgo",
+      },
+      {
+        id: "mejoras",
+        titulo: "Proyectos de mejora",
+        descripcion: `Se registraron ${estadisticas.totalProyectosMejora} proyectos de mejora en el periodo.`,
+        estado: estadisticas.totalProyectosMejora > 0 ? "Cumplido" : "Sin dato",
+      },
+      // Dejamos uno de ejemplo con estado En riesgo
+      {
+         id: "competencias_detalle",
+         titulo: "Gestión de competencias del personal",
+         descripcion: "Se evalúan los requisitos de competencia. Considerar 'En riesgo' si la meta de competencias no se cumple (se necesita un indicador específico para esta lógica).",
+         estado: "En riesgo", // Se mantiene manualmente si no hay lógica de datos clara
+      },
+    ]
+    
+    return {
+      indicadoresMetaActual: mapMetaActual,
+      indicadoresCobertura: mapCobertura,
+      indicadoresCualitativos: mapCualitativos,
+    };
+  }, [datosReales, estadisticas, cargando])
+
+
+  // ------------------ HELPERS (Ajustados para los tipos de datos) ------------------
+
+  // Asegurar que el formateador maneje el nuevo tipo "numero"
   const formatearValor = (indicador: IndicadorMetaActual | IndicadorSimple) => {
     if ("tipo" in indicador && indicador.tipo === "moneda") {
       return indicador.actual.toLocaleString("es-CO", {
@@ -162,19 +226,23 @@ export default function Dashboard() {
       })
     }
 
-    if ("unidad" in indicador && indicador.unidad === "%") {
-      const valor =
-        "tipo" in indicador ? indicador.actual : (indicador as IndicadorSimple).valor
-      return `${valor.toFixed(2)}%`
-    }
-
     const valor =
       "tipo" in indicador ? indicador.actual : (indicador as IndicadorSimple).valor
+      
+    if (indicador.unidad === "%") {
+      return `${valor.toFixed(2)}%`
+    }
+    
+    // Para 'numero' y otros
     return `${valor.toLocaleString("es-CO")} ${indicador.unidad}`
   }
 
+  // Se mantiene la lógica de cálculo de estado de barra (basado en ratio)
   const calcularEstadoBarra = (indicador: IndicadorMetaActual) => {
-    const ratio = indicador.meta > 0 ? indicador.actual / indicador.meta : 0
+    // Si es porcentaje, usamos el valor actual directamente. Si no, calculamos el ratio con la meta.
+    const ratio = indicador.tipo === "porcentaje" 
+        ? indicador.actual / indicador.meta
+        : indicador.meta > 0 ? indicador.actual / indicador.meta : 0
 
     if (ratio >= 1) {
       return {
@@ -192,7 +260,7 @@ export default function Dashboard() {
       }
     }
 
-    if (indicador.actual === 0) {
+    if (indicador.actual === 0 && ratio === 0) {
       return {
         etiqueta: "Sin medición / sin avance",
         color: "#b0bec5",
@@ -206,8 +274,9 @@ export default function Dashboard() {
       fondo: "#ffebee",
     }
   }
-
+  
   const colorEstadoCualitativo = (estado: IndicadorCualitativo["estado"]) => {
+    // Lógica CSS se mantiene
     switch (estado) {
       case "Cumplido":
         return {
@@ -231,37 +300,44 @@ export default function Dashboard() {
     }
   }
 
+
   const toggleAccordion = (id: string) => {
     setAccordionAbierto((prev) => (prev === id ? null : id))
   }
 
-  // ------------------ COMPONENTES UI ------------------
+
+  // ------------------ COMPONENTES UI (Ajustados para usar datos reales) ------------------
 
   const KpiCards = () => {
+    // ⭐️ DATOS REALES EN CARDS ⭐️
     const kpis = [
       {
         id: "kpi_plazos",
-        titulo: "Cumplimiento de plazos",
-        valor: "100%",
-        detalle: "Servicios entregados en los plazos pactados",
+        titulo: "Plazos cumplidos",
+        // Aquí usamos el valor real de plazos cumplidos (total)
+        valor: indicadoresMetaActual.find(i => i.id === 'plazos')?.actual.toLocaleString("es-CO") || "N/A",
+        detalle: `Total de eventos con plazos cumplidos en el periodo.`,
       },
       {
         id: "kpi_aprendices",
-        titulo: "Aprendices atendidos",
-        valor: "16,64%",
-        detalle: "Por encima de la meta del 15%",
+        titulo: "Aprendices Atendidos",
+        // Aquí usamos el valor real de aprendices atendidos
+        valor: indicadoresCobertura.find(i => i.id === 'aprendices_practicas')?.valor.toLocaleString("es-CO") || "N/A",
+        detalle: "Aprendices en prácticas y proyectos de formación.",
       },
       {
         id: "kpi_ventas",
-        titulo: "Ventas 2025",
-        valor: "$9.082.100",
-        detalle: "De una meta de $29.000.000",
+        titulo: "Ventas / Costos",
+        // Aquí usamos el valor real de Ventas
+        valor: formatearValor(indicadoresMetaActual.find(i => i.id === 'ventas') as IndicadorMetaActual) || "N/A",
+        detalle: `De una meta de ${indicadoresMetaActual.find(i => i.id === 'ventas')?.meta.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })}`,
       },
       {
-        id: "kpi_mantenimiento",
-        titulo: "Presupuesto mantenimiento",
-        valor: "$41.000.000",
-        detalle: "Asignado para 2025",
+        id: "kpi_satisfaccion",
+        titulo: "Satisfacción Cliente",
+        // Aquí usamos el valor real de Satisfacción
+        valor: `${(indicadoresMetaActual.find(i => i.id === 'satisfaccion')?.actual || 0).toFixed(2)}%`,
+        detalle: `Promedio del periodo.`,
       },
     ]
 
@@ -279,7 +355,7 @@ export default function Dashboard() {
             color: "#043804",
           }}
         >
-          Resumen general
+          Resumen general ({vista.toUpperCase()})
         </h2>
         <div
           style={{
@@ -347,6 +423,7 @@ export default function Dashboard() {
   }
 
   const SeccionMetaVsActual = () => {
+    // ⭐️ DATOS REALES EN MetaVsActual ⭐️
     return (
       <section
         style={{
@@ -383,7 +460,7 @@ export default function Dashboard() {
             <div>
               {indicadoresMetaActual.map((ind) => {
                 const ratio = ind.meta > 0 ? ind.actual / ind.meta : 0
-                const porcentaje = ind.tipo === "moneda" ? ratio * 100 : ind.actual
+                const porcentaje = ind.tipo === "moneda" ? ratio * 100 : ind.tipo === "porcentaje" ? ind.actual : ratio * 100
                 const estado = calcularEstadoBarra(ind)
                 const anchoBarra = Math.min(ratio * 100, 130)
                 const isHover = hoverMetaId === ind.id
@@ -432,11 +509,11 @@ export default function Dashboard() {
                         Meta:{" "}
                         {ind.tipo === "moneda"
                           ? ind.meta.toLocaleString("es-CO", {
-                            style: "currency",
-                            currency: "COP",
-                            maximumFractionDigits: 0,
-                          })
-                          : `${ind.meta}${ind.unidad}`}
+                              style: "currency",
+                              currency: "COP",
+                              maximumFractionDigits: 0,
+                            })
+                          : `${ind.meta} ${ind.unidad}`}
                       </span>
                     </div>
 
@@ -470,9 +547,13 @@ export default function Dashboard() {
                           textShadow: "0 1px 2px rgba(0,0,0,0.3)",
                         }}
                       >
-                        {ind.tipo === "moneda"
-                          ? `${porcentaje.toFixed(1)}%`
-                          : `${porcentaje.toFixed(1)}${ind.unidad}`}
+                        {/* Mostramos el porcentaje real de avance, o el valor del porcentaje si ese es el indicador */}
+                        {ind.tipo === "porcentaje" 
+                            ? `${ind.actual.toFixed(1)}%`
+                            : ind.tipo === "moneda" 
+                                ? `${(ratio * 100).toFixed(1)}%` // Porcentaje de avance
+                                : `${(ratio * 100).toFixed(1)}%` // Porcentaje de avance
+                        }
                       </span>
                     </div>
 
@@ -526,7 +607,7 @@ export default function Dashboard() {
                 }}
               >
                 Esta sección resume el desempeño del laboratorio frente a las
-                metas definidas en el sistema de gestión. Se destacan:
+                metas definidas. Se destacan:
               </p>
               <ul
                 style={{
@@ -539,17 +620,15 @@ export default function Dashboard() {
                   gap: 4,
                 }}
               >
-                <li>Plazos de servicio totalmente cumplidos.</li>
+                <li>Plazos de servicio: **{indicadoresMetaActual.find(i => i.id === 'plazos')?.actual.toLocaleString("es-CO") || 0}** eventos con plazos cumplidos.</li>
                 <li>
-                  Satisfacción y capacitación aún sin medición / ejecución en el
-                  periodo.
+                  Satisfacción: **{(indicadoresMetaActual.find(i => i.id === 'satisfaccion')?.actual || 0).toFixed(2)}%** (Meta: {indicadoresMetaActual.find(i => i.id === 'satisfaccion')?.meta}%)
                 </li>
                 <li>
-                  Competencias del personal cercanas al 100%, con oportunidad de
-                  mejora.
+                  Capacitación: **{indicadoresMetaActual.find(i => i.id === 'capacitacion')?.actual.toLocaleString("es-CO") || 0}** eventos de capacitación.
                 </li>
                 <li>
-                  Ventas del centro de costos en progreso frente a la meta anual.
+                  Ventas/Costos: **{formatearValor(indicadoresMetaActual.find(i => i.id === 'ventas') as IndicadorMetaActual)}** de una meta de **{indicadoresMetaActual.find(i => i.id === 'ventas')?.meta.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })}**.
                 </li>
               </ul>
             </div>
@@ -560,6 +639,7 @@ export default function Dashboard() {
   }
 
   const SeccionCobertura = () => {
+    // ⭐️ DATOS REALES EN Cobertura ⭐️
     return (
       <section
         style={{
@@ -688,6 +768,7 @@ export default function Dashboard() {
   }
 
   const SeccionCualitativos = () => {
+    // ⭐️ DATOS REALES EN Cualitativos ⭐️
     return (
       <section
         style={{
@@ -814,7 +895,49 @@ export default function Dashboard() {
     )
   }
 
-  // ------------------ RENDER PRINCIPAL ------------------
+  // ------------------ RENDER PRINCIPAL Y VISTA DE CARGA ------------------
+
+  if (cargando) {
+    return (
+      <div style={{ padding: "2rem", textAlign: "center", minHeight: "100vh", background: "linear-gradient(180deg, rgba(215,255,217,0.3), #ffffff 40%)" }}>
+        <h1 style={{ color: "#39a900" }}>Cargando Indicadores Laboratorio... 🧪</h1>
+        <p style={{ color: "#607d8b" }}>Obteniendo datos del periodo: {vista.toUpperCase()}</p>
+        {/* Aquí puedes agregar un spinner o indicador de carga más sofisticado */}
+      </div>
+    );
+  }
+  
+  // Agregar selector de vista al header
+  const PeriodoSelector = () => (
+    <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        gap: '0.5rem', 
+        marginBottom: '1rem',
+        marginTop: '0.5rem'
+    }}>
+        {['semana', 'mes', 'año', 'todos'].map(periodo => (
+            <button
+                key={periodo}
+                onClick={() => setVista(periodo)}
+                style={{
+                    padding: '0.4rem 0.8rem',
+                    borderRadius: '8px',
+                    border: `1px solid ${vista === periodo ? '#39a900' : '#cfd8dc'}`,
+                    backgroundColor: vista === periodo ? '#39a900' : '#ffffff',
+                    color: vista === periodo ? '#ffffff' : '#455a64',
+                    fontWeight: '600',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: vista === periodo ? '0 2px 6px rgba(57, 169, 0, 0.3)' : 'none',
+                }}
+            >
+                {periodo.charAt(0).toUpperCase() + periodo.slice(1)}
+            </button>
+        ))}
+    </div>
+  );
 
   return (
     <div
@@ -834,6 +957,7 @@ export default function Dashboard() {
         <header
           style={{
             marginBottom: isMobile ? 16 : 22,
+            textAlign: "center"
           }}
         >
           <h1
@@ -842,22 +966,20 @@ export default function Dashboard() {
               fontSize: isMobile ? "1.6rem" : isTablet ? "1.9rem" : "2.1rem",
               fontWeight: 800,
               marginBottom: 4,
-              textAlign: isMobile ? "center" : "left",
             }}
           >
-            Indicadores Laboratorio
+            Indicadores Laboratorio 🔬
           </h1>
           <p
             style={{
               fontSize: 13,
               color: "#607d8b",
               margin: 0,
-              textAlign: isMobile ? "center" : "left",
             }}
           >
-            Vista prototipo para el seguimiento de políticas, objetivos y resultados
-            del laboratorio.
+            Datos reales para el periodo seleccionado ({vista.toUpperCase()})
           </p>
+          <PeriodoSelector /> {/* Selector de periodo */}
         </header>
 
         <KpiCards />

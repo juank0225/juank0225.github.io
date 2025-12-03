@@ -1,6 +1,13 @@
+// dashboard.tsx
+
 import { useState, useMemo, useEffect } from 'react';
 import './estilosTecnoacademia.css';
-import { tecnoAcademiaService, type IndicadorTecnoAcademia, type EstadisticasTecnoAcademia } from '../../services/tecnoAcademiaService';
+import { 
+  tecnoAcademiaService, 
+  type IndicadorTecnoAcademia, 
+  type EstadisticasTecnoAcademia,
+  ALL_INDICATORS // <-- IMPORTADO
+} from '../../services/tecnoAcademiaService';
 
 export default function Dashboard() {
   const [query, setQuery] = useState("");
@@ -37,87 +44,60 @@ export default function Dashboard() {
     }
   };
 
-  // Generar items dinámicamente desde datos reales
+  // ⭐️⭐️ CORRECCIÓN CLAVE: Generar items dinámicamente usando TODOS los indicadores ⭐️⭐️
   const items = useMemo(() => {
-    if (cargando || !datosReales.length || !estadisticas) {
+    if (cargando || !datosReales.length) {
       return [
         {
-          label: "Número de instituciones educativas",
+          label: "Cargando Indicadores",
           segments: [
-            { label: "Cargando...", value: 0, color: "#39a900" }
+            { label: "Datos no disponibles", value: 0, color: primaryColor }
           ]
         }
       ];
     }
 
-    // Usar el ÚLTIMO registro para datos actuales
-    const ultimoRegistro = datosReales[datosReales.length - 1];
-    
-    return [
-      {
-        label: "Número de instituciones educativas",
+    // Usar la lista de los 15 indicadores clave
+    return ALL_INDICATORS.map(indicator => {
+      // Calcular el total para CADA INDICADOR en el periodo (sumando todos los registros)
+      const totalValue = datosReales.reduce((sum, item) => {
+        const raw = (item as any)[indicator.key];
+        const num = typeof raw === 'number' ? raw : Number(raw);
+        return sum + (Number.isFinite(num) ? num : 0);
+      }, 0);
+
+      return {
+        label: indicator.label,
         segments: [
-          { label: "Activas", value: ultimoRegistro.numInstituciones, color: "#39a900" },
-          { label: "Articuladas", value: ultimoRegistro.instArticuladas, color: "#5bc41a" }
+          // Cada indicador se muestra como un solo segmento con su total real
+          { 
+            label: `${indicator.label} (Total en el Periodo)`, 
+            value: totalValue, 
+            color: indicator.color 
+          }
         ]
-      },
-      {
-        label: "Estudiantes matriculados",
-        segments: [
-          { label: "Matriculados", value: ultimoRegistro.numEstudiantesMatriculados, color: "#39a900" },
-          { label: "Certificados", value: ultimoRegistro.aprendicesCertificados, color: "#7ed957" }
-        ]
-      },
-      {
-        label: "Proyectos de investigación",
-        segments: [
-          { label: "Proyectos", value: ultimoRegistro.proyectosInvestigacion, color: "#39a900" },
-          { label: "Integrados", value: ultimoRegistro.proyectosIntegrados, color: "#5bc41a" }
-        ]
-      },
-      {
-        label: "Formación y mentorías",
-        segments: [
-          { label: "Mentorías", value: ultimoRegistro.mentorias, color: "#39a900" },
-          { label: "Estudiantes destacados", value: ultimoRegistro.estudiantesDestacados, color: "#7ed957" }
-        ]
-      },
-      {
-        label: "Talleres y actividades",
-        segments: [
-          { label: "Talleres", value: ultimoRegistro.numTalleres, color: "#39a900" },
-          { label: "Actividades innovación", value: ultimoRegistro.actividadesInnovacion, color: "#5bc41a" }
-        ]
-      },
-      {
-        label: "Participación en eventos",
-        segments: [
-          { label: "Ferias", value: ultimoRegistro.participacionFerias, color: "#39a900" },
-          { label: "Visitas centros", value: ultimoRegistro.visitasCentrosFormacion, color: "#7ed957" }
-        ]
-      },
-      {
-        label: "EDTS y cadena formativa",
-        segments: [
-          { label: "EDTS", value: ultimoRegistro.edts, color: "#39a900" },
-          { label: "En cadena formativa", value: ultimoRegistro.aprendicesCadenaFormativa, color: "#5bc41a" }
-        ]
-      },
-      {
-        label: "Proyectos tecnológicos ABP",
-        segments: [
-          { label: "Proyectos ABP", value: ultimoRegistro.proyectosTecnologicosAbp, color: "#39a900" },
-          { label: "Actividades", value: ultimoRegistro.actividadesInnovacion, color: "#5bc41a" }
-        ]
-      }
-    ];
-  }, [datosReales, estadisticas, cargando]);
+      };
+    });
+  }, [datosReales, cargando, primaryColor]);
+
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return items;
     return items.filter((it) => it.label.toLowerCase().includes(q));
   }, [query, items]);
+
+  // 1. SELECCIÓN AUTOMÁTICA DEL PRIMER INDICADOR AL CARGAR
+  useEffect(() => {
+    // Seleccionar automáticamente el primer indicador cuando los datos cargan y 'items' se calcula
+    if (!cargando && items.length > 0 && selectedIndicador === null) {
+      // Asegurarse de que el primer elemento sea un indicador real y no el de 'Cargando...'
+      if (items[0].label !== "Cargando Indicadores") {
+        handleSelect(items[0], 0);
+      }
+    }
+  }, [cargando, items, selectedIndicador]);
+
 
   useEffect(() => {
     if (selectedIndex !== null) {
@@ -140,6 +120,7 @@ export default function Dashboard() {
   };
 
   const Donut = ({ segments = [], size = 380, thickness = 70 }: { segments?: { label: string; value: number; color: string }[]; size?: number; thickness?: number }) => {
+    // El total ahora será la suma de los nuevos segmentos
     const total = segments.reduce((s, it) => s + (it.value || 0), 0) || 1;
     const radius = (size - thickness) / 2;
     const circumference = 2 * Math.PI * radius;
@@ -220,8 +201,8 @@ export default function Dashboard() {
     );
   };
 
-  const SingleDonutStat = ({ title = "Matriculados", segments = [] }: { title?: string; segments?: { label: string; value: number; color: string }[] }) => {
-    const total = segments.reduce((s, it) => s + it.value, 0);
+  const SingleDonutStat = ({ title = "Indicador", segments = [] }: { title?: string; segments?: { label: string; value: number; color: string }[] }) => {
+    const total = segments.reduce((s, it) => s + (it.value || 0), 0);
 
     return (
       <div className="stat-container">
@@ -237,7 +218,7 @@ export default function Dashboard() {
                   {title}
                 </div>
                 <div className="stat-subtitle">
-                  Resumen rápido del desglose por categoría
+                  Valor total acumulado en el periodo: {vista.toUpperCase()}
                 </div>
               </div>
 
@@ -248,13 +229,13 @@ export default function Dashboard() {
                 >
                   {total}
                 </div>
-                <div className="stat-total-label">Total</div>
+                <div className="stat-total-label">Total Real</div>
               </div>
             </div>
 
             <div className="stat-legend">
               {segments.map((s, i) => {
-                const pct = Math.round((s.value / total) * 100);
+                const pct = total === 0 ? 0 : Math.round((s.value / total) * 100);
                 return (
                   <div
                     key={i}
@@ -290,7 +271,7 @@ export default function Dashboard() {
   if (cargando) {
     return (
       <div className="dashboard-container">
-        <h1 className="dashboard-title" style={{ color: '#39a900', fontWeight: 'bold', textAlign: 'center', padding: '0 0.5rem' }}>
+        <h1 className="dashboard-title" style={{ color: primaryColor, fontWeight: 'bold', textAlign: 'center', padding: '0 0.5rem' }}>
           Indicadores Tecnoacademia
         </h1>
         <div style={{ 
@@ -298,10 +279,10 @@ export default function Dashboard() {
           justifyContent: 'center', 
           alignItems: 'center', 
           height: '400px',
-          color: '#39a900',
+          color: primaryColor,
           fontSize: '18px'
         }}>
-          Cargando datos...
+          Cargando datos reales de la base de datos...
         </div>
       </div>
     );
@@ -309,14 +290,14 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-container">
-      <h1 className="dashboard-title" style={{ color: '#39a900', 
+      <h1 className="dashboard-title" style={{ color: primaryColor, 
           fontWeight: 'bold', 
           textAlign: 'center',
           padding: '0 0.5rem' }}>
         Indicadores Tecnoacademia
       </h1>
 
-      {/* Estadísticas rápidas */}
+      {/* Estadísticas rápidas (usan datos reales de 'estadisticas' que calcula el backend) */}
       {estadisticas && (
         <div style={{
           display: 'grid',
@@ -332,7 +313,7 @@ export default function Dashboard() {
             textAlign: 'center'
           }}>
             <div style={{ fontSize: '0.9rem', color: '#666' }}>Total Instituciones</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#39a900' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: primaryColor }}>
               {estadisticas.totalInstituciones}
             </div>
           </div>
@@ -343,7 +324,7 @@ export default function Dashboard() {
             textAlign: 'center'
           }}>
             <div style={{ fontSize: '0.9rem', color: '#666' }}>Total Estudiantes</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#39a900' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: primaryColor }}>
               {estadisticas.totalEstudiantes}
             </div>
           </div>
@@ -354,7 +335,7 @@ export default function Dashboard() {
             textAlign: 'center'
           }}>
             <div style={{ fontSize: '0.9rem', color: '#666' }}>Certificados</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#39a900' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: primaryColor }}>
               {estadisticas.totalCertificados}
             </div>
           </div>
@@ -365,7 +346,7 @@ export default function Dashboard() {
             textAlign: 'center'
           }}>
             <div style={{ fontSize: '0.9rem', color: '#666' }}>Registros</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#39a900' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: primaryColor }}>
               {estadisticas.cantidadRegistros}
             </div>
           </div>
@@ -380,15 +361,15 @@ export default function Dashboard() {
         marginBottom: '2rem',
         padding: '0 0.5rem'
       }}>
-        {['semana', 'mes', 'año'].map((periodo) => (
+        {['semana', 'mes', 'año', 'todos'].map((periodo) => (
           <button
             key={periodo}
             onClick={() => setVista(periodo)}
             style={{
               padding: '0.75rem 1.5rem',
               borderRadius: '8px',
-              border: `2px solid ${vista === periodo ? '#39a900' : '#e0e0e0'}`,
-              backgroundColor: vista === periodo ? '#39a900' : '#fff',
+              border: `2px solid ${vista === periodo ? primaryColor : '#e0e0e0'}`,
+              backgroundColor: vista === periodo ? primaryColor : '#fff',
               color: vista === periodo ? '#fff' : '#333',
               fontWeight: '600',
               fontSize: '14px',
@@ -421,8 +402,8 @@ export default function Dashboard() {
               </div>
 
               <div>
-                <div className="sidebar-title">Indicadores</div>
-                <div className="sidebar-subtitle">Selecciona un indicador</div>
+                <div className="sidebar-title">Indicadores (15 campos)</div>
+                <div className="sidebar-subtitle">Selecciona un indicador real</div>
               </div>
             </div>
 
@@ -462,9 +443,9 @@ export default function Dashboard() {
           {/* Lista scrollable */}
           <div className="indicators-list">
             <div className="indicators-wrapper">
-              {filtered.map((item, index) => {
+              {filtered.map((item: { segments: any; label: any; }, index: number) => {
                 const isSelected = selectedIndex === index;
-                const total = item.segments.reduce((s, seg) => s + seg.value, 0);
+                const total = item.segments.reduce((s: any, seg: { value: any; }) => s + (seg.value || 0), 0);
                 return (
                   <div
                     key={index}
@@ -489,7 +470,7 @@ export default function Dashboard() {
                     <div className="indicator-content">
                       <div className="indicator-title">{item.label}</div>
                       <div className="indicator-meta">
-                        {item.segments.length} categorías • Total: {total}
+                        Total acumulado: {total}
                       </div>
                     </div>
                   </div>
@@ -507,7 +488,7 @@ export default function Dashboard() {
           {/* Footer */}
           <div className="sidebar-footer">
             <div className="footer-text">
-              Mostrar {filtered.length} de {items.length}
+              Mostrando {filtered.length} indicadores
             </div>
 
             <button
@@ -535,7 +516,7 @@ export default function Dashboard() {
               </svg>
               <h3 className="empty-title">Selecciona un indicador</h3>
               <p className="empty-text">
-                Elige un indicador de la lista para ver sus estadísticas detalladas
+                Elige uno de los 15 indicadores de la lista para ver su valor real acumulado en el periodo.
               </p>
             </div>
           )}

@@ -1,51 +1,57 @@
 import { useState, useEffect } from 'react';
-import { tecnoAcademiaService, type IndicadorTecnoAcademia, type EstadisticasTecnoAcademia } from '../../services/tecnoAcademiaService';
+// Asegúrate de que esta ruta sea correcta en tu estructura de carpetas
+import { tecnoParqueService, type IndicadorTecnoParque, type EstadisticasTecnoParque } from '../../services/tecnoParqueService';
 
 type DatosPeriodo = {
-  labels: string[];
+  labels: string[]; // Etiquetas completas
   valores: number[];
-  displayLabels?: string[];
+  displayLabels?: string[]; // Etiquetas filtradas (se mantiene, aunque aquí será igual a labels)
 };
 
 export default function Dashboard() {
+  // --- ESTADOS ---
   const [vista, setVista] = useState('Semana');
   const [tipoGrafico, setTipoGrafico] = useState('Gráfico de línea');
-  const [categoriaActiva, setCategoriaActiva] = useState('Instituciones');
+  const [categoriaActiva, setCategoriaActiva] = useState('Proyectos');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [animacionKey, setAnimacionKey] = useState(0);
+  
+  // Estado para responsividad
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
-  const [datosReales, setDatosReales] = useState<IndicadorTecnoAcademia[]>([]);
-  const [estadisticas, setEstadisticas] = useState<EstadisticasTecnoAcademia | null>(null);
+  
+  // Estados de DATOS REALES
+  const [datosReales, setDatosReales] = useState<IndicadorTecnoParque[]>([]);
+  const [estadisticas, setEstadisticas] = useState<EstadisticasTecnoParque | null>(null);
   const [cargando, setCargando] = useState(true);
 
-  // Efectos
+  // --- EFECTOS ---
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Efecto para cargar datos cuando cambia la "vista" (Semana/Mes/Año)
   useEffect(() => {
     cargarDatos();
   }, [vista]);
 
-  // Lógica de datos
+  // --- LÓGICA DE DATOS ---
   const cargarDatos = async () => {
     try {
       setCargando(true);
+      // Asumiendo que tu servicio acepta 'semana', 'mes', 'año'
       const [indicadores, stats] = await Promise.all([
-        tecnoAcademiaService.obtenerIndicadores(vista.toLowerCase()),
-        tecnoAcademiaService.obtenerEstadisticas(vista.toLowerCase())
+        tecnoParqueService.obtenerIndicadores(vista.toLowerCase()),
+        tecnoParqueService.obtenerEstadisticas(vista.toLowerCase())
       ]);
-      
-      console.log('Datos cargados:', indicadores); // Para debug
-      console.log('Estadísticas:', stats); // Para debug
       
       setDatosReales(indicadores);
       setEstadisticas(stats);
-      setAnimacionKey(prev => prev + 1);
+      setAnimacionKey(prev => prev + 1); // Reiniciar animación al cargar nuevos datos
     } catch (error) {
       console.error('Error cargando datos:', error);
+      // Aquí podrías poner un estado de error si quisieras
     } finally {
       setCargando(false);
     }
@@ -53,38 +59,40 @@ export default function Dashboard() {
 
   const isMobile = windowWidth < 640;
   const isTablet = windowWidth >= 640 && windowWidth < 1024;
-  
-  // Categorías específicas para Tecnoacademia
-  const categorias = ['Instituciones', 'Estudiantes', 'Certificados', 'Proyectos Investigación', 'Talleres', 'Instituciones Articuladas'];
+  const categorias = ['Proyectos', 'Articulaciones', 'Visitas', 'Giras', 'Asesorías'];
   const opcionesGrafico = ['Gráfico de línea', 'Gráfico de barras', 'Gráfico circular'];
 
-  // Mapeo CORRECTO para Tecnoacademia
-  const clavePorCategoria = (cat: string): keyof IndicadorTecnoAcademia | null => {
+  // Función auxiliar para mapear el nombre de la categoría (Visual) a la propiedad del objeto (Datos)
+  const clavePorCategoria = (cat: string): keyof IndicadorTecnoParque | null => {
     switch (cat) {
-      case 'Instituciones': return 'numInstituciones';
-      case 'Estudiantes': return 'numEstudiantesMatriculados';
-      case 'Certificados': return 'aprendicesCertificados';
-      case 'Proyectos Investigación': return 'proyectosInvestigacion';
-      case 'Talleres': return 'numTalleres';
-      case 'Instituciones Articuladas': return 'instArticuladas';
+      case 'Proyectos': return 'proyectos';
+      case 'Articulaciones': return 'articulaciones';
+      case 'Visitas': return 'visitas';
+      case 'Giras': return 'giras';
+      case 'Asesorías': return 'asesorias';
       default: return null;
     }
   };
 
+  /**
+   * Calcula el número de semana dentro del mes.
+   * La primera semana (que contiene el día 1) es la semana 1.
+   */
   const getWeekOfMonth = (date: Date): number => {
     const dayOfMonth = date.getDate();
     return Math.ceil(dayOfMonth / 7);
   };
   
+  // Transformación de datos: De array de objetos (API) a Labels y Valores (Gráficos)
   const generarDatosGrafica = (): DatosPeriodo => {
     if (cargando || !datosReales.length) {
       return { labels: [], valores: [], displayLabels: [] };
     }
 
     const key = clavePorCategoria(categoriaActiva);
-    const safeKey = key || 'numInstituciones';
+    const safeKey = key || 'proyectos';
 
-    // Vista 'Mes' - Agrupación por semana
+    // --- LÓGICA PARA LA VISTA 'MES' (Agrupación por semana) ---
     if (vista === 'Mes') {
       const groupedData = new Map<number, { count: number, total: number }>();
       
@@ -103,33 +111,44 @@ export default function Dashboard() {
       });
 
       const sortedWeeks = Array.from(groupedData.keys()).sort((a, b) => a - b);
+      
       const labels = sortedWeeks.map(week => `Semana ${week}`);
       const valores = sortedWeeks.map(week => groupedData.get(week)!.total);
       
       return { labels, valores, displayLabels: labels };
     }
     
-    // Vista 'Año' - Agrupación por mes
+    // --- LÓGICA PARA LA VISTA 'AÑO' (Agrupación por mes - 12 puntos fijos) ---
     if (vista === 'Año') {
+      // 1. Definir los 12 meses (etiquetas)
       const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+      
+      // 2. Inicializar el array de valores con ceros
       const monthlyTotals = new Array(12).fill(0);
 
+      // 3. Sumar los valores de los datos reales al mes correspondiente
       datosReales.forEach(item => {
         const fecha = new Date(item.fecha);
+        // Date.getMonth() retorna 0 (Ene) a 11 (Dic)
         const monthIndex = fecha.getMonth(); 
         const value = Number(item[safeKey]) || 0;
+        
+        // Sumamos el valor al índice del mes
         monthlyTotals[monthIndex] += value;
       });
 
+      // 4. Retornar los 12 meses y los valores acumulados
       return { labels: monthNames, valores: monthlyTotals, displayLabels: monthNames };
     }
     
-    // Vista 'Semana' - Por día
+    // --- LÓGICA PARA LA VISTA 'SEMANA' (Por día) ---
+    // La lógica original para 'Semana'
     const labels: string[] = []; 
-    const displayLabels: string[] = [];
+    const displayLabels: string[] = []; 
 
     datosReales.forEach(item => {
       const fecha = new Date(item.fecha);
+
       if (vista === 'Semana') {
         const label = fecha.toLocaleDateString('es-ES', { weekday: 'short' });
         labels.push(label);
@@ -137,14 +156,14 @@ export default function Dashboard() {
       }
     });
 
-    const valores = datosReales.map(item => Number(item[safeKey]) || 0);
+    const valores = key ? datosReales.map(item => Number(item[key]) || 0) : [];
 
     return { labels, valores, displayLabels };
   };
 
   const datos = generarDatosGrafica();
 
-  // Funciones de interacción
+  // --- FUNCIONES DE INTERACCIÓN, etc. (El resto del código se mantiene igual) ---
   const cambiarVista = (nuevaVista: string) => {
     if (vista !== nuevaVista) {
       setVista(nuevaVista);
@@ -168,17 +187,21 @@ export default function Dashboard() {
     return [0, step, step * 2, step * 3, step * 4, step * 5];
   };
 
-  // Componentes de gráfico
+  // --- COMPONENTES DE GRÁFICO (Se asegura de usar el ancho original y las nuevas etiquetas) ---
+
   const GraficoLinea = ({ labels, valores, displayLabels }: { labels: string[]; valores: number[], displayLabels?: string[] }) => {
     if (valores.length === 0) return null;
 
-    const labelsToShow = displayLabels && displayLabels.length === labels.length ? displayLabels : labels;
+    const labelsToShow = displayLabels && displayLabels.length === labels.length ? displayLabels : labels; 
+
     const containerWidth = Math.min(windowWidth - 40, 1000);
     const width = isMobile ? Math.max(300, containerWidth) : isTablet ? 700 : 1000;
+    
     const height = isMobile ? 280 : isTablet ? 380 : 520;
     const padding = isMobile ? 60 : isTablet ? 75 : 95;
     const maxY = Math.max(...valores, 1);
-    const stepX = (width - padding * 2) / (labels.length - 1 || 1);
+    // El cálculo del paso X se hace sobre el número de etiquetas (12 para la vista 'Año')
+    const stepX = (width - padding * 2) / (labels.length - 1 || 1); 
 
     const points = valores.map((valor, i) => {
       const x = padding + i * stepX;
@@ -224,12 +247,15 @@ export default function Dashboard() {
   const GraficoBarras = ({ labels, valores, displayLabels }: { labels: string[], valores: number[], displayLabels?: string[] }) => {
     if (valores.length === 0) return null;
 
-    const labelsToShow = displayLabels && displayLabels.length === labels.length ? displayLabels : labels;
+    const labelsToShow = displayLabels && displayLabels.length === labels.length ? displayLabels : labels; 
+
     const containerWidth = Math.min(windowWidth - 40, 1000);
     const width = isMobile ? Math.max(300, containerWidth) : isTablet ? 700 : 1000;
+    
     const height = isMobile ? 280 : isTablet ? 380 : 520;
     const padding = isMobile ? 60 : isTablet ? 75 : 95;
     const maxY = Math.max(...valores, 1);
+    // barWidth se calcula sobre el número de grupos (12 meses para la vista 'Año')
     const barWidth = (width - padding * 2) / labels.length - (isMobile ? 14 : 20);
     const ySteps = getYAxisSteps(maxY);
 
@@ -248,12 +274,14 @@ export default function Dashboard() {
           ))}
           <g>
             {valores.map((valor, i) => {
+              // Posición de la barra, basada en el número de etiquetas (12)
               const x = padding + i * ((width - padding * 2) / labels.length) + (isMobile ? 7 : 10);
               const barHeight = (valor / maxY) * (height - padding * 2);
               const y = height - padding - barHeight;
               return <rect key={i} x={x} y={y} width={barWidth} height={barHeight} fill="#39a900" rx={isMobile ? 3 : 5} className="bar-rect" style={{ animationDelay: `${i * 0.06}s` }} />;
             })}
           </g>
+          {/* Usamos labelsToShow (12 meses) */}
           {labelsToShow.map((label, i) => {
             const x = padding + i * ((width - padding * 2) / labels.length) + barWidth / 2 + (isMobile ? 7 : 10);
             return <text key={i} x={x} y={height - 18} fontSize={isMobile ? 10 : 12} textAnchor="middle" fill="#607d8b" fontFamily="system-ui">{label}</text>;
@@ -268,7 +296,7 @@ export default function Dashboard() {
     );
   };
 
-  const GraficoCircular = ({ labels, valores }: { labels: string[], valores: number[], displayLabels?: string[] }) => {
+  const GraficoCircular = ({ labels, valores, displayLabels }: { labels: string[], valores: number[], displayLabels?: string[] }) => {
     if (valores.length === 0) return null;
 
     const containerWidth = Math.min(windowWidth - 40, 1000);
@@ -278,6 +306,7 @@ export default function Dashboard() {
     const centerY = isMobile ? height / 2 + 30 : height / 2;
     const radius = isMobile ? 75 : isTablet ? 120 : 160;
     const total = valores.reduce((sum, val) => sum + val, 0);
+    // Evitar división por cero si el total es 0
     const safeTotal = total === 0 ? 1 : total;
     const colores = ['#39a900', '#52c41a', '#6fd649', '#87e856', '#a0f365', '#b8ff72', '#43a047', '#388e3c', '#2e7d32', '#1b5e20', '#154d0f'];
     
@@ -296,6 +325,7 @@ export default function Dashboard() {
             const endAngle = currentAngle + angle;
             currentAngle = endAngle;
             
+            // Si el valor es 0 o muy pequeño, lo saltamos visualmente o lo manejamos
             if (valor === 0) return null;
 
             const startRad = (startAngle * Math.PI) / 180;
@@ -305,6 +335,7 @@ export default function Dashboard() {
             const x2 = centerX + radius * Math.cos(endRad);
             const y2 = centerY + radius * Math.sin(endRad);
             const largeArc = angle > 180 ? 1 : 0;
+            // Asegurarse de cerrar bien el círculo si es 360 grados
             const pathData = angle >= 360 
                 ? `M ${centerX - radius} ${centerY} A ${radius} ${radius} 0 1 0 ${centerX + radius} ${centerY} A ${radius} ${radius} 0 1 0 ${centerX - radius} ${centerY}`
                 : [`M ${centerX} ${centerY}`, `L ${x1} ${y1}`, `A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`, 'Z'].join(' ');
@@ -339,6 +370,7 @@ export default function Dashboard() {
       );
     }
     
+    // Si no hay datos después de cargar
     if (!datosReales || datosReales.length === 0) {
         return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px', color: '#607d8b' }}>No hay datos disponibles para este periodo.</div>;
     }
@@ -352,48 +384,22 @@ export default function Dashboard() {
 
   return (
     <div style={{ padding: isMobile ? '1rem 0.5rem' : isTablet ? '1.5rem 1rem' : '2rem 1.5rem', minHeight: '100vh', background: 'linear-gradient(180deg, rgba(215,255,217,0.25), #ffffff 35%, #ffffff 100%)', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      <h1 style={{ color: '#39a900', fontSize: isMobile ? '1.6rem' : isTablet ? '2rem' : '2.25rem', fontWeight: '800', marginBottom: isMobile ? '1.5rem' : '2rem', textAlign: 'center' }}>Indicadores Tecnoacademia</h1>
+      <h1 style={{ color: '#39a900', fontSize: isMobile ? '1.6rem' : isTablet ? '2rem' : '2.25rem', fontWeight: '800', marginBottom: isMobile ? '1.5rem' : '2rem', textAlign: 'center' }}>Indicadores Tecnoparque</h1>
       
-      {/* Mostrar estadísticas si están disponibles */}
-      {estadisticas && (
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : isTablet ? 'repeat(3, 1fr)' : 'repeat(5, 1fr)', gap: '1rem', marginBottom: '2rem', padding: '0 1rem', maxWidth: '1400px', margin: '0 auto' }}>
-          <div style={{ background: '#e8f5e9', padding: '1rem', borderRadius: '10px', textAlign: 'center', border: '1px solid #39a900' }}>
-            <div style={{ fontSize: '0.9rem', color: '#043804' }}>Total Instituciones</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#39a900' }}>{estadisticas.totalInstituciones}</div>
-          </div>
-          <div style={{ background: '#e8f5e9', padding: '1rem', borderRadius: '10px', textAlign: 'center', border: '1px solid #39a900' }}>
-            <div style={{ fontSize: '0.9rem', color: '#043804' }}>Total Estudiantes</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#39a900' }}>{estadisticas.totalEstudiantes}</div>
-          </div>
-          <div style={{ background: '#e8f5e9', padding: '1rem', borderRadius: '10px', textAlign: 'center', border: '1px solid #39a900' }}>
-            <div style={{ fontSize: '0.9rem', color: '#043804' }}>Certificados</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#39a900' }}>{estadisticas.totalCertificados}</div>
-          </div>
-          <div style={{ background: '#e8f5e9', padding: '1rem', borderRadius: '10px', textAlign: 'center', border: '1px solid #39a900' }}>
-            <div style={{ fontSize: '0.9rem', color: '#043804' }}>Proyectos Investigación</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#39a900' }}>{estadisticas.totalProyectosInvestigacion}</div>
-          </div>
-          <div style={{ background: '#e8f5e9', padding: '1rem', borderRadius: '10px', textAlign: 'center', border: '1px solid #39a900' }}>
-            <div style={{ fontSize: '0.9rem', color: '#043804' }}>Registros</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#39a900' }}>{estadisticas.cantidadRegistros}</div>
-          </div>
-        </div>
-      )}
-
       {/* Botones de Categorías */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : isTablet ? 'repeat(3, 1fr)' : 'repeat(6, 1fr)', gap: isMobile ? '0.75rem' : '1rem', marginBottom: isMobile ? '1.5rem' : '2rem', padding: '0 0.5rem', maxWidth: '1400px', margin: '0 auto' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : isTablet ? 'repeat(3, 1fr)' : 'repeat(5, 1fr)', gap: isMobile ? '0.75rem' : '1rem', marginBottom: isMobile ? '1.5rem' : '2rem', padding: '0 0.5rem', maxWidth: '1400px', margin: '0 auto ' + (isMobile ? '1.5rem' : '2rem') + ' auto' }}>
         {categorias.map((categoria) => (
-          <button key={categoria} onClick={() => cambiarCategoria(categoria)} style={{ backgroundColor: categoriaActiva === categoria ? '#39a900' : '#e8f5e9', color: categoriaActiva === categoria ? '#fff' : '#39a900', padding: isMobile ? '0.65rem 0.5rem' : '0.85rem 0.75rem', fontSize: isMobile ? '0.7rem' : '0.85rem', fontWeight: categoriaActiva === categoria ? '600' : '500', borderRadius: '10px', border: categoriaActiva === categoria ? 'none' : '2px solid #39a900', cursor: 'pointer', boxShadow: categoriaActiva === categoria ? '0 3px 8px rgba(57,169,0,0.25)' : '0 2px 4px rgba(0,0,0,0.08)', transition: 'all 0.18s ease', whiteSpace: 'nowrap', fontFamily: 'system-ui' }} onMouseOver={(e) => { if (!isMobile) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(57,169,0,0.3)'; } }} onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = categoriaActiva === categoria ? '0 3px 8px rgba(57,169,0,0.25)' : '0 2px 4px rgba(0,0,0,0.08)'; }} >{categoria}</button>
+          <button key={categoria} onClick={() => cambiarCategoria(categoria)} style={{ backgroundColor: categoriaActiva === categoria ? '#39a900' : '#e8f5e9', color: categoriaActiva === categoria ? '#fff' : '#39a900', padding: isMobile ? '0.65rem 0.75rem' : '0.85rem 1.5rem', fontSize: isMobile ? '0.75rem' : '0.9rem', fontWeight: categoriaActiva === categoria ? '600' : '500', borderRadius: '10px', border: categoriaActiva === categoria ? 'none' : '2px solid #39a900', cursor: 'pointer', boxShadow: categoriaActiva === categoria ? '0 3px 8px rgba(57,169,0,0.25)' : '0 2px 4px rgba(0,0,0,0.08)', transition: 'all 0.18s ease', whiteSpace: 'nowrap', fontFamily: 'system-ui' }} onMouseOver={(e) => { if (!isMobile) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(57,169,0,0.3)'; } }} onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = categoriaActiva === categoria ? '0 3px 8px rgba(57,169,0,0.25)' : '0 2px 4px rgba(0,0,0,0.08)'; }} >{categoria}</button>
         ))}
       </div>
 
       {/* Contenedor Principal del Gráfico */}
       <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isMobile ? '24px' : '32px', backgroundColor: '#fff', padding: isMobile ? '1.25rem' : isTablet ? '1.75rem' : '2.5rem', borderRadius: '16px', boxShadow: '0 3px 12px rgba(0,0,0,0.08)', border: '1px solid #e0f2e9' }}>
         
-        {/* Renderizado del Gráfico */}
+        {/* Renderizado Condicional del Gráfico */}
         <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>{renderGrafico()}</div>
 
-        {/* Controles Inferiores */}
+        {/* Controles Inferiores (Tipo de Gráfico y Periodo) */}
         <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '16px' : '48px', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
           
           {/* Dropdown Tipo de Gráfico */}
@@ -411,7 +417,7 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Botones de Periodo */}
+          {/* Botones de Periodo (Semana, Mes, Año) */}
           <div style={{ display: 'flex', gap: isMobile ? '10px' : '16px', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'center' }}>
             {['Semana', 'Mes', 'Año'].map((texto) => (
               <button key={texto} onClick={() => cambiarVista(texto)} style={{ padding: isMobile ? '12px 16px' : '14px 28px', borderRadius: '10px', border: '2px solid #39a900', backgroundColor: vista === texto ? '#39a900' : '#fff', color: vista === texto ? '#fff' : '#37474f', fontWeight: vista === texto ? '600' : '500', fontSize: isMobile ? '13px' : '15px', cursor: 'pointer', transition: 'all 0.18s ease', flex: isMobile ? '1' : 'none', fontFamily: 'system-ui' }} onMouseEnter={(e) => { if (!isMobile && vista !== texto) { e.currentTarget.style.backgroundColor = '#e8f5e9'; e.currentTarget.style.transform = 'translateY(-2px)'; } }} onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = vista === texto ? '#39a900' : '#fff'; e.currentTarget.style.transform = 'translateY(0)'; }} >{texto}</button>
