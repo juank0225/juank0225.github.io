@@ -1,9 +1,11 @@
-// src/services/authService.ts
 const API_URL = 'http://localhost:3000';
-const FRONTEND_URL = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : 'http://localhost:5173';
+const FRONTEND_URL =
+  (typeof window !== 'undefined' && window.location && window.location.origin)
+    ? window.location.origin
+    : 'http://localhost:5173';
 
 export interface LoginData {
-  usuario: string;
+  correo: string;
   password: string;
 }
 
@@ -40,18 +42,15 @@ export const authService = {
     return response.json();
   },
 
-  // Nuevo método para obtener el usuario actual
   getCurrentUser() {
     const userStr = localStorage.getItem('user');
     return userStr ? JSON.parse(userStr) : null;
   },
 
-  // Método para obtener el token
   getToken() {
     return localStorage.getItem('token');
   },
 
-  // Método para cerrar sesión
   logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -62,9 +61,7 @@ export const authService = {
     window.location.replace(`${FRONTEND_URL}/#/app`);
   },
 
-  // Método para verificar si está autenticado
   isAuthenticated() {
     return !!localStorage.getItem('token');
   }
 };
-

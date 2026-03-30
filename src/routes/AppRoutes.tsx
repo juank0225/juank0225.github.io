@@ -3,6 +3,7 @@ import Layout from '@/components/Layout'
 
 // Login
 import Login from '@/pages/Login'
+import Register from '@/pages/Register'
 
 // Pages (lazy loading could be added later)
 import TecnoparqueDashboard from '@/pages/Tecnoparque/Dashboard'
@@ -27,6 +28,7 @@ export default function AppRoutes() {
       <Routes>
         {/* 🔹 Ruta inicial: login */}
         <Route path="/" element={<Login />} />
+        <Route path="/register" element={<Register />} />
 
         {/* 🔹 Resto de la app con layout */}
         <Route path="/app" element={<Layout />}>

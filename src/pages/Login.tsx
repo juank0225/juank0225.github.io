@@ -1,17 +1,19 @@
 import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import FotoTecnoparque from "../assets/FotoTecnoparque.jpg"
 
-// Importar el servicio de auth
 import { authService, type LoginData } from "../services/authService"
 
 export default function Login() {
+  const navigate = useNavigate()
+
   const [hover, setHover] = useState(false)
   const [visible, setVisible] = useState(false)
   const [focusButton, setFocusButton] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [formData, setFormData] = useState<LoginData>({
-    usuario: "",
+    correo: "",
     password: ""
   })
 
@@ -21,12 +23,12 @@ export default function Login() {
 
   const handleInputChange = (field: keyof LoginData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-    setError("") // Limpiar error al escribir
+    setError("")
   }
 
   const handleLogin = async () => {
-    if (!formData.usuario || !formData.password) {
-      setError("Usuario y contraseña son requeridos")
+    if (!formData.correo || !formData.password) {
+      setError("Correo y contraseña son requeridos")
       return
     }
 
@@ -35,15 +37,13 @@ export default function Login() {
 
     try {
       const response = await authService.login(formData)
-      
-      // Guardar token y user en localStorage
+
       localStorage.setItem("token", response.access_token)
       localStorage.setItem("user", JSON.stringify(response.user))
-      
-      // Navegar al dashboard
-authService.redirectToApp();
+
+      authService.redirectToApp()
     } catch (err) {
-      setError("Usuario o contraseña incorrectos")
+      setError("Correo o contraseña incorrectos")
       console.error("Login error:", err)
     } finally {
       setLoading(false)
@@ -71,7 +71,6 @@ authService.redirectToApp();
         position: "relative",
       }}
     >
-      {/* Capa semitransparente */}
       <div
         style={{
           position: "absolute",
@@ -82,7 +81,6 @@ authService.redirectToApp();
         }}
       />
 
-      {/* Caja del login */}
       <div
         style={{
           opacity: visible ? 1 : 0,
@@ -116,19 +114,20 @@ authService.redirectToApp();
           Bienvenido 👋
         </h1>
 
-        {/* Mensaje de error */}
         {error && (
-          <div style={{
-            width: "100%",
-            padding: "10px",
-            backgroundColor: "rgba(255,0,0,0.1)",
-            border: "1px solid rgba(255,0,0,0.3)",
-            borderRadius: "8px",
-            color: "#d00",
-            fontSize: "0.9rem",
-            marginBottom: "15px",
-            textAlign: "center"
-          }}>
+          <div
+            style={{
+              width: "100%",
+              padding: "10px",
+              backgroundColor: "rgba(255,0,0,0.1)",
+              border: "1px solid rgba(255,0,0,0.3)",
+              borderRadius: "8px",
+              color: "#d00",
+              fontSize: "0.9rem",
+              marginBottom: "15px",
+              textAlign: "center"
+            }}
+          >
             {error}
           </div>
         )}
@@ -141,13 +140,13 @@ authService.redirectToApp();
               fontSize: "0.9rem",
             }}
           >
-            Usuario
+            Correo electrónico
           </label>
           <input
-            type="text"
-            placeholder="Ingresa tu usuario"
-            value={formData.usuario}
-            onChange={(e) => handleInputChange("usuario", e.target.value)}
+            type="email"
+            placeholder="Ingresa tu correo"
+            value={formData.correo}
+            onChange={(e) => handleInputChange("correo", e.target.value)}
             onKeyPress={handleKeyPress}
             style={{
               width: "100%",
@@ -241,6 +240,7 @@ authService.redirectToApp();
         >
           ¿No tienes cuenta?{" "}
           <span
+            onClick={() => navigate("/register")}
             style={{
               color: "#39A900",
               fontWeight: 600,
