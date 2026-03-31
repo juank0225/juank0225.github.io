@@ -1,75 +1,142 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   tecnoParqueService,
   type IndicadorTecnoParque,
-  type EstadisticasTecnoParque
+  type EstadisticasTecnoParque,
 } from '../../services/tecnoParqueService';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  LineChart,
+  Line,
+  ReferenceLine,
+} from 'recharts';
 
-type DatosPeriodo = {
-  labels: string[];
-  valores: number[];
-  displayLabels?: string[];
+type VistaPeriodo = 'Semana' | 'Mes' | 'Año';
+type TipoIndicador = 'proyectos' | 'articulaciones' | 'visitas' | 'giras' | 'asesorias';
+
+type ConfigIndicador = {
+  key: TipoIndicador;
+  label: string;
+  meta: number;
 };
 
+type TarjetaIndicador = {
+  key: TipoIndicador;
+  label: string;
+  actual: number;
+  meta: number;
+  cumplimiento: number;
+  diferencia: number;
+  estado: 'Cumplido' | 'En riesgo' | 'Crítico';
+  color: string;
+};
+
+const CONFIG_INDICADORES: ConfigIndicador[] = [
+  { key: 'proyectos', label: 'Proyectos', meta: 20 },
+  { key: 'articulaciones', label: 'Articulaciones', meta: 12 },
+  { key: 'visitas', label: 'Visitas', meta: 40 },
+  { key: 'giras', label: 'Giras', meta: 10 },
+  { key: 'asesorias', label: 'Asesorías', meta: 35 },
+];
+
+const coloresIndicadores: Record<TipoIndicador, string> = {
+  proyectos: '#39a900',
+  articulaciones: '#1e88e5',
+  visitas: '#8e24aa',
+  giras: '#fb8c00',
+  asesorias: '#e53935',
+};
+
+function normalizarPeriodo(vista: VistaPeriodo) {
+  switch (vista) {
+    case 'Semana':
+      return 'semana';
+    case 'Mes':
+      return 'mes';
+    case 'Año':
+      return 'anio';
+    default:
+      return 'semana';
+  }
+}
+
+function parseFechaSegura(fecha: string | Date) {
+  if (fecha instanceof Date) return fecha;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    return new Date(`${fecha}T12:00:00`);
+  }
+
+  return new Date(fecha);
+}
+
+function ordenarPorFecha(data: IndicadorTecnoParque[]) {
+  return [...data].sort((a, b) => {
+    const fechaA = parseFechaSegura(a.fecha).getTime();
+    const fechaB = parseFechaSegura(b.fecha).getTime();
+    return fechaA - fechaB;
+  });
+}
+
+function formatearNumero(valor: number) {
+  return new Intl.NumberFormat('es-CO').format(valor);
+}
+
+function formatearFechaCorta(fecha: string | Date) {
+  const date = parseFechaSegura(fecha);
+  if (isNaN(date.getTime())) return '-';
+
+  return date.toLocaleDateString('es-CO', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function obtenerEstado(cumplimiento: number): TarjetaIndicador['estado'] {
+  if (cumplimiento >= 100) return 'Cumplido';
+  if (cumplimiento >= 80) return 'En riesgo';
+  return 'Crítico';
+}
+
+function obtenerColorEstado(estado: TarjetaIndicador['estado']) {
+  switch (estado) {
+    case 'Cumplido':
+      return '#2e7d32';
+    case 'En riesgo':
+      return '#f9a825';
+    case 'Crítico':
+      return '#c62828';
+    default:
+      return '#607d8b';
+  }
+}
+
+function getWeekOfMonth(date: Date): number {
+  const dayOfMonth = date.getDate();
+  return Math.ceil(dayOfMonth / 7);
+}
+
 export default function Dashboard() {
-  const [vista, setVista] = useState('Semana');
-  const [tipoGrafico, setTipoGrafico] = useState('Gráfico de línea');
-  const [categoriaActiva, setCategoriaActiva] = useState('Proyectos');
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [animacionKey, setAnimacionKey] = useState(0);
-
-  const [windowWidth, setWindowWidth] = useState(
-    typeof window !== 'undefined' ? window.innerWidth : 1200
-  );
-
+  const [vista, setVista] = useState<VistaPeriodo>('Semana');
   const [datosReales, setDatosReales] = useState<IndicadorTecnoParque[]>([]);
   const [estadisticas, setEstadisticas] = useState<EstadisticasTecnoParque | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  const [indicadorActivo, setIndicadorActivo] = useState<TipoIndicador>('proyectos');
 
   useEffect(() => {
     cargarDatos();
   }, [vista]);
 
-  const normalizarPeriodo = (valor: string) => {
-    switch (valor) {
-      case 'Semana':
-        return 'semana';
-      case 'Mes':
-        return 'mes';
-      case 'Año':
-        return 'anio'; // importante: evita enviar "año"
-      default:
-        return 'semana';
-    }
-  };
-
-  const parseFechaSegura = (fecha: string | Date) => {
-    if (fecha instanceof Date) return fecha;
-
-    // Si viene como YYYY-MM-DD, se fuerza a mediodía para evitar desfase por timezone
-    if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
-      return new Date(`${fecha}T12:00:00`);
-    }
-
-    return new Date(fecha);
-  };
-
-  const ordenarPorFecha = (data: IndicadorTecnoParque[]) => {
-    return [...data].sort((a, b) => {
-      const fechaA = parseFechaSegura(a.fecha).getTime();
-      const fechaB = parseFechaSegura(b.fecha).getTime();
-      return fechaA - fechaB;
-    });
-  };
-
-  const cargarDatos = async () => {
+  async function cargarDatos() {
     try {
       setCargando(true);
       setError(null);
@@ -78,746 +145,771 @@ export default function Dashboard() {
 
       const [indicadores, stats] = await Promise.all([
         tecnoParqueService.obtenerIndicadores(periodo),
-        tecnoParqueService.obtenerEstadisticas(periodo)
+        tecnoParqueService.obtenerEstadisticas(periodo),
       ]);
 
-      const indicadoresOrdenados = ordenarPorFecha(indicadores || []);
-
-      setDatosReales(indicadoresOrdenados);
+      setDatosReales(ordenarPorFecha(indicadores || []));
       setEstadisticas(stats);
-      setAnimacionKey(prev => prev + 1);
     } catch (err) {
-      console.error('Error cargando datos:', err);
+      console.error('Error cargando datos del dashboard:', err);
       setError('No fue posible cargar los datos del dashboard.');
       setDatosReales([]);
       setEstadisticas(null);
     } finally {
       setCargando(false);
     }
-  };
+  }
 
-  const isMobile = windowWidth < 640;
-  const isTablet = windowWidth >= 640 && windowWidth < 1024;
-  const categorias = ['Proyectos', 'Articulaciones', 'Visitas', 'Giras', 'Asesorías'];
-  const opcionesGrafico = ['Gráfico de línea', 'Gráfico de barras', 'Gráfico circular'];
+  const tarjetas: TarjetaIndicador[] = useMemo(() => {
+    return CONFIG_INDICADORES.map((config) => {
+      const actual = datosReales.reduce((acc, item) => acc + (Number(item[config.key]) || 0), 0);
+      const meta = config.meta;
+      const cumplimiento = meta > 0 ? (actual / meta) * 100 : 0;
+      const diferencia = actual - meta;
+      const estado = obtenerEstado(cumplimiento);
 
-  const clavePorCategoria = (cat: string): keyof IndicadorTecnoParque | null => {
-    switch (cat) {
-      case 'Proyectos':
-        return 'proyectos';
-      case 'Articulaciones':
-        return 'articulaciones';
-      case 'Visitas':
-        return 'visitas';
-      case 'Giras':
-        return 'giras';
-      case 'Asesorías':
-        return 'asesorias';
-      default:
-        return null;
-    }
-  };
+      return {
+        key: config.key,
+        label: config.label,
+        actual,
+        meta,
+        cumplimiento,
+        diferencia,
+        estado,
+        color: coloresIndicadores[config.key],
+      };
+    });
+  }, [datosReales]);
 
-  const getWeekOfMonth = (date: Date): number => {
-    const dayOfMonth = date.getDate();
-    return Math.ceil(dayOfMonth / 7);
-  };
+  const resumenGeneral = useMemo(() => {
+    const totalCumplidos = tarjetas.filter((item) => item.estado === 'Cumplido').length;
+    const totalRiesgo = tarjetas.filter((item) => item.estado === 'En riesgo').length;
+    const totalCriticos = tarjetas.filter((item) => item.estado === 'Crítico').length;
 
-  const generarDatosGrafica = (): DatosPeriodo => {
-    if (cargando || !datosReales.length) {
-      return { labels: [], valores: [], displayLabels: [] };
-    }
+    const promedioCumplimiento =
+      tarjetas.length > 0
+        ? tarjetas.reduce((acc, item) => acc + item.cumplimiento, 0) / tarjetas.length
+        : 0;
 
-    const key = clavePorCategoria(categoriaActiva);
-    const safeKey = key || 'proyectos';
+    return {
+      totalCumplidos,
+      totalRiesgo,
+      totalCriticos,
+      promedioCumplimiento,
+    };
+  }, [tarjetas]);
+
+  const datosGraficoComparativo = useMemo(() => {
+    return tarjetas.map((item) => ({
+      indicador: item.label,
+      actual: item.actual,
+      meta: item.meta,
+      cumplimiento: Number(item.cumplimiento.toFixed(1)),
+      estado: item.estado,
+      color: item.color,
+    }));
+  }, [tarjetas]);
+
+  const datosTendencia = useMemo(() => {
+    if (!datosReales.length) return [];
 
     if (vista === 'Mes') {
       const groupedData = new Map<number, number>();
 
-      datosReales.forEach(item => {
+      datosReales.forEach((item) => {
         const fecha = parseFechaSegura(item.fecha);
         if (isNaN(fecha.getTime())) return;
 
         const week = getWeekOfMonth(fecha);
-        const value = Number(item[safeKey]) || 0;
-
-        groupedData.set(week, (groupedData.get(week) || 0) + value);
+        const valor = Number(item[indicadorActivo]) || 0;
+        groupedData.set(week, (groupedData.get(week) || 0) + valor);
       });
 
-      const sortedWeeks = Array.from(groupedData.keys()).sort((a, b) => a - b);
-      const labels = sortedWeeks.map(week => `Semana ${week}`);
-      const valores = sortedWeeks.map(week => groupedData.get(week) || 0);
-
-      return { labels, valores, displayLabels: labels };
+      return Array.from(groupedData.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([week, valor]) => ({
+          periodo: `Semana ${week}`,
+          valor,
+        }));
     }
 
     if (vista === 'Año') {
       const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
       const monthlyTotals = new Array(12).fill(0);
 
-      datosReales.forEach(item => {
+      datosReales.forEach((item) => {
         const fecha = parseFechaSegura(item.fecha);
         if (isNaN(fecha.getTime())) return;
 
         const monthIndex = fecha.getMonth();
-        const value = Number(item[safeKey]) || 0;
-
-        monthlyTotals[monthIndex] += value;
+        monthlyTotals[monthIndex] += Number(item[indicadorActivo]) || 0;
       });
 
-      return {
-        labels: monthNames,
-        valores: monthlyTotals,
-        displayLabels: monthNames
-      };
+      return monthNames.map((mes, index) => ({
+        periodo: mes,
+        valor: monthlyTotals[index],
+      }));
     }
 
-    const labels: string[] = [];
-    const displayLabels: string[] = [];
-
-    datosReales.forEach(item => {
+    return datosReales.map((item) => {
       const fecha = parseFechaSegura(item.fecha);
-      if (isNaN(fecha.getTime())) return;
+      const label = isNaN(fecha.getTime())
+        ? 'Fecha inválida'
+        : fecha.toLocaleDateString('es-CO', { weekday: 'short', day: '2-digit' });
 
-      const label = fecha.toLocaleDateString('es-ES', { weekday: 'short' });
-      labels.push(label);
-      displayLabels.push(label);
+      return {
+        periodo: label,
+        valor: Number(item[indicadorActivo]) || 0,
+      };
     });
+  }, [datosReales, indicadorActivo, vista]);
 
-    const valores = datosReales.map(item => Number(item[safeKey]) || 0);
+  const ultimaFecha = useMemo(() => {
+    if (!datosReales.length) return '-';
+    return formatearFechaCorta(datosReales[datosReales.length - 1].fecha);
+  }, [datosReales]);
 
-    return { labels, valores, displayLabels };
-  };
+  const indicadorActivoInfo = useMemo(() => {
+    return tarjetas.find((item) => item.key === indicadorActivo) || tarjetas[0];
+  }, [tarjetas, indicadorActivo]);
 
-  const datos = generarDatosGrafica();
+  const observacionesRecientes = useMemo(() => {
+    return datosReales
+      .filter((item) => item.observaciones && item.observaciones.trim() !== '')
+      .slice(-5)
+      .reverse();
+  }, [datosReales]);
 
-  const cambiarVista = (nuevaVista: string) => {
-    if (vista !== nuevaVista) {
-      setVista(nuevaVista);
-    }
-  };
+  const CustomTooltipComparativo = ({ active, payload }: any) => {
+    if (!active || !payload || !payload.length) return null;
 
-  const cambiarTipoGrafico = (nuevoTipo: string) => {
-    setTipoGrafico(nuevoTipo);
-    setDropdownOpen(false);
-    setAnimacionKey(prev => prev + 1);
-  };
-
-  const cambiarCategoria = (categoria: string) => {
-    setCategoriaActiva(categoria);
-    setAnimacionKey(prev => prev + 1);
-  };
-
-  const getYAxisSteps = (maxY: number) => {
-    const safeMax = maxY <= 0 ? 10 : maxY;
-    const step = Math.ceil(safeMax / 5);
-    return [0, step, step * 2, step * 3, step * 4, step * 5];
-  };
-
-  const GraficoLinea = ({
-    labels,
-    valores,
-    displayLabels
-  }: {
-    labels: string[];
-    valores: number[];
-    displayLabels?: string[];
-  }) => {
-    if (valores.length === 0) return null;
-
-    const labelsToShow =
-      displayLabels && displayLabels.length === labels.length ? displayLabels : labels;
-
-    const containerWidth = Math.min(windowWidth - 40, 1000);
-    const width = isMobile ? Math.max(300, containerWidth) : isTablet ? 700 : 1000;
-    const height = isMobile ? 280 : isTablet ? 380 : 520;
-    const padding = isMobile ? 60 : isTablet ? 75 : 95;
-    const maxY = Math.max(...valores, 1);
-    const stepX = (width - padding * 2) / (labels.length - 1 || 1);
-
-    const points = valores.map((valor, i) => {
-      const x = padding + i * stepX;
-      const y = height - padding - (valor / maxY) * (height - padding * 2);
-      return [x, y];
-    });
-
-    const pathD = points.reduce((acc, [x, y], i) => {
-      return i === 0 ? `M ${x},${y}` : `${acc} L ${x},${y}`;
-    }, '');
-
-    const ySteps = getYAxisSteps(maxY);
+    const data = payload[0]?.payload;
+    if (!data) return null;
 
     return (
-      <div style={{ width: '100%', overflowX: 'auto', display: 'flex', justifyContent: 'center' }}>
-        <svg width={width} height={height} key={animacionKey} style={{ maxWidth: '100%' }}>
-          <style>{`
-            @keyframes drawLine { from { stroke-dashoffset: 2000; } to { stroke-dashoffset: 0; } }
-            @keyframes fadeIn { from { opacity: 0; r: 0; } to { opacity: 1; r: 5.5px; } }
-            .line-path { stroke-dasharray: 2000; animation: drawLine 1.5s ease forwards; }
-            .point-circle { animation: fadeIn 0.4s ease forwards; }
-          `}</style>
-
-          {ySteps.slice(0, -1).map((_, i) => (
-            <line
-              key={i}
-              x1={padding}
-              x2={width - padding}
-              y1={height - padding - (i + 1) * (height - padding * 2) / (ySteps.length - 1)}
-              y2={height - padding - (i + 1) * (height - padding * 2) / (ySteps.length - 1)}
-              stroke="#e0f2e9"
-              strokeDasharray="5,3"
-              strokeWidth="1"
-            />
-          ))}
-
-          {labelsToShow.map((label, i) => (
-            <text
-              key={i}
-              x={padding + i * stepX}
-              y={height - 18}
-              fontSize={isMobile ? 10 : 12}
-              textAnchor="middle"
-              fill="#607d8b"
-              fontFamily="system-ui"
-            >
-              {label}
-            </text>
-          ))}
-
-          {ySteps.map((valor, i) => {
-            const y = height - padding - (valor / maxY) * (height - padding * 2);
-            return (
-              <text
-                key={i}
-                x={isMobile ? 8 : 18}
-                y={y + 5}
-                fontSize={isMobile ? 9 : 10}
-                fill="#607d8b"
-                fontFamily="system-ui"
-                fontWeight="500"
-              >
-                {valor}
-              </text>
-            );
-          })}
-
-          <path
-            d={pathD}
-            fill="none"
-            stroke="#39a900"
-            strokeWidth={isMobile ? 2.5 : 3.5}
-            className="line-path"
-          />
-
-          {points.map(([x, y], i) => (
-            <circle
-              key={i}
-              cx={x}
-              cy={y}
-              r={isMobile ? 3 : 4.5}
-              fill="#39a900"
-              className="point-circle"
-              style={{ animationDelay: `${i * 0.1 + 1.2}s` }}
-            />
-          ))}
-
-          <text
-            x={width / 2}
-            y={25}
-            textAnchor="middle"
-            fontSize={isMobile ? 15 : 18}
-            fontWeight="700"
-            fill="#043804"
-            fontFamily="system-ui"
-          >
-            {categoriaActiva} por {vista}
-          </text>
-        </svg>
+      <div
+        style={{
+          backgroundColor: '#fff',
+          border: '1px solid #dfe6e9',
+          borderRadius: '12px',
+          padding: '12px',
+          boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
+        }}
+      >
+        <p style={{ margin: '0 0 8px 0', fontWeight: 700, color: '#1f2937' }}>{data.indicador}</p>
+        <p style={{ margin: '4px 0', color: '#37474f' }}>Actual: {formatearNumero(data.actual)}</p>
+        <p style={{ margin: '4px 0', color: '#37474f' }}>Meta: {formatearNumero(data.meta)}</p>
+        <p style={{ margin: '4px 0', color: '#37474f' }}>Cumplimiento: {data.cumplimiento}%</p>
+        <p style={{ margin: '4px 0', color: obtenerColorEstado(data.estado), fontWeight: 700 }}>
+          Estado: {data.estado}
+        </p>
       </div>
     );
   };
 
-  const GraficoBarras = ({
-    labels,
-    valores,
-    displayLabels
-  }: {
-    labels: string[];
-    valores: number[];
-    displayLabels?: string[];
-  }) => {
-    if (valores.length === 0) return null;
-
-    const labelsToShow =
-      displayLabels && displayLabels.length === labels.length ? displayLabels : labels;
-
-    const containerWidth = Math.min(windowWidth - 40, 1000);
-    const width = isMobile ? Math.max(300, containerWidth) : isTablet ? 700 : 1000;
-    const height = isMobile ? 280 : isTablet ? 380 : 520;
-    const padding = isMobile ? 60 : isTablet ? 75 : 95;
-    const maxY = Math.max(...valores, 1);
-    const spacePerBar = (width - padding * 2) / Math.max(labels.length, 1);
-    const barWidth = Math.max(12, spacePerBar - (isMobile ? 14 : 20));
-    const ySteps = getYAxisSteps(maxY);
+  const CustomTooltipTendencia = ({ active, payload, label }: any) => {
+    if (!active || !payload || !payload.length) return null;
 
     return (
-      <div style={{ width: '100%', overflowX: 'auto', display: 'flex', justifyContent: 'center' }}>
-        <svg width={width} height={height} key={animacionKey} style={{ maxWidth: '100%' }}>
-          <style>{`
-            @keyframes growBar {
-              from { transform: scaleY(0); opacity: 0; }
-              to { transform: scaleY(1); opacity: 1; }
-            }
-            .bar-rect { transform-origin: bottom; animation: growBar 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
-          `}</style>
-
-          {ySteps.slice(0, -1).map((_, i) => (
-            <line
-              key={i}
-              x1={padding}
-              x2={width - padding}
-              y1={height - padding - (i + 1) * (height - padding * 2) / (ySteps.length - 1)}
-              y2={height - padding - (i + 1) * (height - padding * 2) / (ySteps.length - 1)}
-              stroke="#e0f2e9"
-              strokeDasharray="5,3"
-              strokeWidth="1"
-            />
-          ))}
-
-          <g>
-            {valores.map((valor, i) => {
-              const x = padding + i * spacePerBar + (spacePerBar - barWidth) / 2;
-              const barHeight = (valor / maxY) * (height - padding * 2);
-              const y = height - padding - barHeight;
-
-              return (
-                <rect
-                  key={i}
-                  x={x}
-                  y={y}
-                  width={barWidth}
-                  height={barHeight}
-                  fill="#39a900"
-                  rx={isMobile ? 3 : 5}
-                  className="bar-rect"
-                  style={{ animationDelay: `${i * 0.06}s` }}
-                />
-              );
-            })}
-          </g>
-
-          {labelsToShow.map((label, i) => {
-            const x = padding + i * spacePerBar + spacePerBar / 2;
-            return (
-              <text
-                key={i}
-                x={x}
-                y={height - 18}
-                fontSize={isMobile ? 10 : 12}
-                textAnchor="middle"
-                fill="#607d8b"
-                fontFamily="system-ui"
-              >
-                {label}
-              </text>
-            );
-          })}
-
-          {ySteps.map((valor, i) => {
-            const y = height - padding - (valor / maxY) * (height - padding * 2);
-            return (
-              <text
-                key={i}
-                x={isMobile ? 8 : 18}
-                y={y + 5}
-                fontSize={isMobile ? 9 : 10}
-                fill="#607d8b"
-                fontFamily="system-ui"
-                fontWeight="500"
-              >
-                {valor}
-              </text>
-            );
-          })}
-
-          <text
-            x={width / 2}
-            y={25}
-            textAnchor="middle"
-            fontSize={isMobile ? 15 : 18}
-            fontWeight="700"
-            fill="#043804"
-            fontFamily="system-ui"
-          >
-            {categoriaActiva} por {vista}
-          </text>
-        </svg>
+      <div
+        style={{
+          backgroundColor: '#fff',
+          border: '1px solid #dfe6e9',
+          borderRadius: '12px',
+          padding: '12px',
+          boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
+        }}
+      >
+        <p style={{ margin: '0 0 8px 0', fontWeight: 700, color: '#1f2937' }}>{label}</p>
+        <p style={{ margin: 0, color: '#37474f' }}>
+          {indicadorActivoInfo?.label}: {formatearNumero(payload[0].value)}
+        </p>
       </div>
     );
   };
 
-  const GraficoCircular = ({
-    labels,
-    valores,
-    displayLabels
-  }: {
-    labels: string[];
-    valores: number[];
-    displayLabels?: string[];
-  }) => {
-    if (valores.length === 0) return null;
-
-    const labelsToShow =
-      displayLabels && displayLabels.length === labels.length ? displayLabels : labels;
-
-    const containerWidth = Math.min(windowWidth - 40, 1000);
-    const width = isMobile ? Math.max(300, containerWidth) : isTablet ? 700 : 1000;
-    const height = isMobile ? 380 : isTablet ? 450 : 540;
-    const centerX = width / 2;
-    const centerY = isMobile ? height / 2 + 30 : height / 2;
-    const radius = isMobile ? 75 : isTablet ? 120 : 160;
-    const total = valores.reduce((sum, val) => sum + val, 0);
-    const safeTotal = total === 0 ? 1 : total;
-
-    const colores = [
-      '#39a900',
-      '#52c41a',
-      '#6fd649',
-      '#87e856',
-      '#a0f365',
-      '#b8ff72',
-      '#43a047',
-      '#388e3c',
-      '#2e7d32',
-      '#1b5e20',
-      '#154d0f'
-    ];
-
-    let currentAngle = -90;
-
+  if (cargando) {
     return (
-      <div style={{ width: '100%', overflowX: 'auto', display: 'flex', justifyContent: 'center' }}>
-        <svg width={width} height={height} key={animacionKey} style={{ maxWidth: '100%' }}>
-          <style>{`
-            @keyframes fadeInScale { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
-            .slice-path { opacity: 0; animation: fadeInScale 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; transform-origin: ${centerX}px ${centerY}px; }
-          `}</style>
-
-          {valores.map((valor, i) => {
-            const angle = (valor / safeTotal) * 360;
-            const startAngle = currentAngle;
-            const endAngle = currentAngle + angle;
-            currentAngle = endAngle;
-
-            if (valor === 0) return null;
-
-            const startRad = (startAngle * Math.PI) / 180;
-            const endRad = (endAngle * Math.PI) / 180;
-            const x1 = centerX + radius * Math.cos(startRad);
-            const y1 = centerY + radius * Math.sin(startRad);
-            const x2 = centerX + radius * Math.cos(endRad);
-            const y2 = centerY + radius * Math.sin(endRad);
-            const largeArc = angle > 180 ? 1 : 0;
-
-            const pathData =
-              angle >= 360
-                ? `M ${centerX - radius} ${centerY} A ${radius} ${radius} 0 1 0 ${centerX + radius} ${centerY} A ${radius} ${radius} 0 1 0 ${centerX - radius} ${centerY}`
-                : [`M ${centerX} ${centerY}`, `L ${x1} ${y1}`, `A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`, 'Z'].join(' ');
-
-            return (
-              <path
-                key={i}
-                d={pathData}
-                fill={colores[i % colores.length]}
-                className="slice-path"
-                style={{ animationDelay: `${i * 0.12}s` }}
-              />
-            );
-          })}
-
-          <text
-            x={centerX}
-            y={28}
-            textAnchor="middle"
-            fontSize={isMobile ? 15 : 18}
-            fontWeight="700"
-            fill="#043804"
-            fontFamily="system-ui"
-          >
-            {categoriaActiva} por {vista}
-          </text>
-
-          {labelsToShow.map((label, i) => {
-            const legendX = isMobile ? 14 : width - 160;
-            const legendY = isMobile ? height - 135 + i * (isMobile ? 19 : 25) : 95 + i * 28;
-
-            return (
-              <g key={i}>
-                <rect
-                  x={legendX}
-                  y={legendY}
-                  width={isMobile ? 12 : 14}
-                  height={isMobile ? 12 : 14}
-                  fill={colores[i % colores.length]}
-                  rx="2"
-                />
-                <text
-                  x={legendX + (isMobile ? 16 : 20)}
-                  y={legendY + (isMobile ? 10 : 12)}
-                  fontSize={isMobile ? 10 : 12}
-                  fill="#37474f"
-                  fontFamily="system-ui"
-                  fontWeight="500"
-                >
-                  {label}: {valores[i]}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-    );
-  };
-
-  const renderGrafico = () => {
-    if (cargando) {
-      return (
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            height: '400px',
-            flexDirection: 'column',
-            gap: '15px'
-          }}
-        >
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          background: 'linear-gradient(180deg, #f3fff0 0%, #ffffff 100%)',
+          fontFamily: 'system-ui, sans-serif',
+        }}
+      >
+        <div style={{ textAlign: 'center' }}>
           <div
             style={{
-              width: '40px',
-              height: '40px',
+              width: 52,
+              height: 52,
               borderRadius: '50%',
-              border: '4px solid #e8f5e9',
-              borderTop: '4px solid #39a900',
-              animation: 'spin 1s linear infinite'
+              border: '5px solid #dff3d2',
+              borderTop: '5px solid #39a900',
+              margin: '0 auto 16px auto',
+              animation: 'spin 1s linear infinite',
             }}
-          >
-            <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-          </div>
-          <div style={{ color: '#39a900', fontSize: isMobile ? '16px' : '18px', fontFamily: 'system-ui' }}>
-            Cargando datos reales...
-          </div>
+          />
+          <p style={{ color: '#2e7d32', fontSize: '1rem', fontWeight: 600 }}>Cargando dashboard...</p>
+          <style>{`@keyframes spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }`}</style>
         </div>
-      );
-    }
+      </div>
+    );
+  }
 
-    if (error) {
-      return (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px', color: '#d32f2f' }}>
-          {error}
-        </div>
-      );
-    }
-
-    if (!datosReales || datosReales.length === 0) {
-      return (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px', color: '#607d8b' }}>
-          No hay datos disponibles para este periodo.
-        </div>
-      );
-    }
-
-    switch (tipoGrafico) {
-      case 'Gráfico de barras':
-        return <GraficoBarras labels={datos.labels} valores={datos.valores} displayLabels={datos.displayLabels} />;
-      case 'Gráfico circular':
-        return <GraficoCircular labels={datos.labels} valores={datos.valores} displayLabels={datos.displayLabels} />;
-      default:
-        return <GraficoLinea labels={datos.labels} valores={datos.valores} displayLabels={datos.displayLabels} />;
-    }
-  };
+  if (error) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          background: '#fff',
+          fontFamily: 'system-ui, sans-serif',
+          color: '#c62828',
+          padding: '2rem',
+          textAlign: 'center',
+        }}
+      >
+        {error}
+      </div>
+    );
+  }
 
   return (
     <div
       style={{
-        padding: isMobile ? '1rem 0.5rem' : isTablet ? '1.5rem 1rem' : '2rem 1.5rem',
         minHeight: '100vh',
-        background: 'linear-gradient(180deg, rgba(215,255,217,0.25), #ffffff 35%, #ffffff 100%)',
-        fontFamily: 'system-ui, -apple-system, sans-serif'
+        background: 'linear-gradient(180deg, rgba(215,255,217,0.35), #ffffff 32%, #ffffff 100%)',
+        padding: '24px',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
       }}
     >
-      <h1
-        style={{
-          color: '#39a900',
-          fontSize: isMobile ? '1.6rem' : isTablet ? '2rem' : '2.25rem',
-          fontWeight: '800',
-          marginBottom: isMobile ? '1.5rem' : '2rem',
-          textAlign: 'center'
-        }}
-      >
-        Indicadores Tecnoparque
-      </h1>
-
-      {/* aquí podrías luego pintar estadísticas si quieres usar "estadisticas" */}
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: isMobile ? '1fr 1fr' : isTablet ? 'repeat(3, 1fr)' : 'repeat(5, 1fr)',
-          gap: isMobile ? '0.75rem' : '1rem',
-          maxWidth: '1400px',
-          margin: '0 auto ' + (isMobile ? '1.5rem' : '2rem') + ' auto',
-          padding: '0 0.5rem'
-        }}
-      >
-        {categorias.map((categoria) => (
-          <button
-            key={categoria}
-            onClick={() => cambiarCategoria(categoria)}
-            style={{
-              backgroundColor: categoriaActiva === categoria ? '#39a900' : '#e8f5e9',
-              color: categoriaActiva === categoria ? '#fff' : '#39a900',
-              padding: isMobile ? '0.65rem 0.75rem' : '0.85rem 1.5rem',
-              fontSize: isMobile ? '0.75rem' : '0.9rem',
-              fontWeight: categoriaActiva === categoria ? '600' : '500',
-              borderRadius: '10px',
-              border: categoriaActiva === categoria ? 'none' : '2px solid #39a900',
-              cursor: 'pointer',
-              boxShadow: categoriaActiva === categoria ? '0 3px 8px rgba(57,169,0,0.25)' : '0 2px 4px rgba(0,0,0,0.08)',
-              transition: 'all 0.18s ease',
-              whiteSpace: 'nowrap',
-              fontFamily: 'system-ui'
-            }}
-          >
-            {categoria}
-          </button>
-        ))}
-      </div>
-
-      <div
-        style={{
-          maxWidth: '1400px',
-          margin: '0 auto',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: isMobile ? '24px' : '32px',
-          backgroundColor: '#fff',
-          padding: isMobile ? '1.25rem' : isTablet ? '1.75rem' : '2.5rem',
-          borderRadius: '16px',
-          boxShadow: '0 3px 12px rgba(0,0,0,0.08)',
-          border: '1px solid #e0f2e9'
-        }}
-      >
-        <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>{renderGrafico()}</div>
-
+      <div style={{ maxWidth: 1400, margin: '0 auto' }}>
         <div
           style={{
             display: 'flex',
-            flexDirection: isMobile ? 'column' : 'row',
-            gap: isMobile ? '16px' : '48px',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '100%'
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: '16px',
+            flexWrap: 'wrap',
+            marginBottom: '24px',
           }}
         >
-          <div style={{ width: isMobile ? '100%' : 'auto' }}>
-            <div
-              onClick={() => setDropdownOpen(!dropdownOpen)}
+          <div>
+            <h1
               style={{
-                padding: isMobile ? '12px 16px' : '14px 20px',
-                border: '2px solid #39a900',
-                borderRadius: '10px',
-                backgroundColor: '#fff',
-                cursor: 'pointer',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                fontSize: isMobile ? '14px' : '15px',
-                fontWeight: '500',
-                transition: 'all 0.18s ease',
-                fontFamily: 'system-ui'
+                margin: 0,
+                color: '#1b5e20',
+                fontSize: '2rem',
+                fontWeight: 800,
               }}
             >
-              <span>{tipoGrafico}</span>
-              <span
-                style={{
-                  transform: dropdownOpen ? 'rotate(180deg)' : 'rotate(0)',
-                  transition: '0.18s ease',
-                  display: 'inline-block',
-                  marginLeft: '8px'
-                }}
-              >
-                ▼
-              </span>
-            </div>
-
-            {dropdownOpen && (
-              <div
-                style={{
-                  marginTop: '6px',
-                  border: '2px solid #39a900',
-                  borderRadius: '10px',
-                  backgroundColor: '#fff',
-                  overflow: 'hidden',
-                  boxShadow: '0 6px 16px rgba(0,0,0,0.12)',
-                  position: 'relative',
-                  zIndex: 10
-                }}
-              >
-                {opcionesGrafico.map((opcion, index) => (
-                  <div
-                    key={index}
-                    onClick={() => cambiarTipoGrafico(opcion)}
-                    style={{
-                      padding: isMobile ? '12px 16px' : '14px 20px',
-                      cursor: 'pointer',
-                      backgroundColor: opcion === tipoGrafico ? '#e8f5e9' : 'transparent',
-                      fontSize: isMobile ? '14px' : '15px',
-                      transition: 'background-color 0.18s ease',
-                      fontFamily: 'system-ui',
-                      color: '#37474f'
-                    }}
-                  >
-                    {opcion}
-                  </div>
-                ))}
-              </div>
-            )}
+              Dashboard de Indicadores Tecnoparque
+            </h1>
+            <p style={{ margin: '8px 0 0 0', color: '#546e7a', fontSize: '1rem' }}>
+              Seguimiento ejecutivo de cumplimiento por periodo
+            </p>
           </div>
 
           <div
             style={{
               display: 'flex',
-              gap: isMobile ? '10px' : '16px',
-              width: isMobile ? '100%' : 'auto',
-              justifyContent: isMobile ? 'space-between' : 'center'
+              gap: '10px',
+              flexWrap: 'wrap',
             }}
           >
-            {['Semana', 'Mes', 'Año'].map((texto) => (
+            {(['Semana', 'Mes', 'Año'] as VistaPeriodo[]).map((opcion) => (
               <button
-                key={texto}
-                onClick={() => cambiarVista(texto)}
+                key={opcion}
+                onClick={() => setVista(opcion)}
                 style={{
-                  padding: isMobile ? '12px 16px' : '14px 28px',
+                  padding: '10px 18px',
                   borderRadius: '10px',
                   border: '2px solid #39a900',
-                  backgroundColor: vista === texto ? '#39a900' : '#fff',
-                  color: vista === texto ? '#fff' : '#37474f',
-                  fontWeight: vista === texto ? '600' : '500',
-                  fontSize: isMobile ? '13px' : '15px',
+                  backgroundColor: vista === opcion ? '#39a900' : '#fff',
+                  color: vista === opcion ? '#fff' : '#2f3e46',
                   cursor: 'pointer',
-                  transition: 'all 0.18s ease',
-                  flex: isMobile ? '1' : 'none',
-                  fontFamily: 'system-ui'
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
                 }}
               >
-                {texto}
+                {opcion}
               </button>
             ))}
           </div>
         </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '16px',
+            marginBottom: '24px',
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: '18px',
+              padding: '18px',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.07)',
+              border: '1px solid #edf7ea',
+            }}
+          >
+            <p style={{ margin: 0, color: '#607d8b', fontSize: '0.92rem' }}>Promedio de cumplimiento</p>
+            <h2 style={{ margin: '8px 0 0 0', color: '#1b5e20', fontSize: '1.8rem' }}>
+              {resumenGeneral.promedioCumplimiento.toFixed(1)}%
+            </h2>
+          </div>
+
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: '18px',
+              padding: '18px',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.07)',
+              border: '1px solid #edf7ea',
+            }}
+          >
+            <p style={{ margin: 0, color: '#607d8b', fontSize: '0.92rem' }}>Indicadores cumplidos</p>
+            <h2 style={{ margin: '8px 0 0 0', color: '#2e7d32', fontSize: '1.8rem' }}>
+              {resumenGeneral.totalCumplidos}
+            </h2>
+          </div>
+
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: '18px',
+              padding: '18px',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.07)',
+              border: '1px solid #edf7ea',
+            }}
+          >
+            <p style={{ margin: 0, color: '#607d8b', fontSize: '0.92rem' }}>Indicadores en riesgo</p>
+            <h2 style={{ margin: '8px 0 0 0', color: '#f9a825', fontSize: '1.8rem' }}>
+              {resumenGeneral.totalRiesgo}
+            </h2>
+          </div>
+
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: '18px',
+              padding: '18px',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.07)',
+              border: '1px solid #edf7ea',
+            }}
+          >
+            <p style={{ margin: 0, color: '#607d8b', fontSize: '0.92rem' }}>Última actualización</p>
+            <h2 style={{ margin: '8px 0 0 0', color: '#1b5e20', fontSize: '1.2rem' }}>{ultimaFecha}</h2>
+            <p style={{ margin: '8px 0 0 0', color: '#78909c', fontSize: '0.88rem' }}>
+              Registros: {estadisticas?.cantidadRegistros ?? datosReales.length}
+            </p>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+            gap: '16px',
+            marginBottom: '28px',
+          }}
+        >
+          {tarjetas.map((item) => {
+            const estaActiva = indicadorActivo === item.key;
+            const colorEstado = obtenerColorEstado(item.estado);
+
+            return (
+              <button
+                key={item.key}
+                onClick={() => setIndicadorActivo(item.key)}
+                style={{
+                  textAlign: 'left',
+                  background: '#fff',
+                  borderRadius: '18px',
+                  padding: '18px',
+                  border: estaActiva ? `2px solid ${item.color}` : '1px solid #e8f5e9',
+                  boxShadow: estaActiva ? '0 8px 24px rgba(0,0,0,0.10)' : '0 4px 14px rgba(0,0,0,0.06)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <p style={{ margin: 0, color: '#546e7a', fontWeight: 700 }}>{item.label}</p>
+                  <span
+                    style={{
+                      backgroundColor: `${colorEstado}18`,
+                      color: colorEstado,
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      padding: '6px 10px',
+                      borderRadius: '999px',
+                    }}
+                  >
+                    {item.estado}
+                  </span>
+                </div>
+
+                <h3 style={{ margin: '14px 0 4px 0', fontSize: '2rem', color: item.color }}>
+                  {formatearNumero(item.actual)}
+                </h3>
+
+                <p style={{ margin: '0 0 12px 0', color: '#78909c' }}>
+                  Meta: {formatearNumero(item.meta)}
+                </p>
+
+                <div
+                  style={{
+                    width: '100%',
+                    height: '10px',
+                    backgroundColor: '#edf2f7',
+                    borderRadius: '999px',
+                    overflow: 'hidden',
+                    marginBottom: '10px',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${Math.min(item.cumplimiento, 100)}%`,
+                      height: '100%',
+                      backgroundColor: colorEstado,
+                      borderRadius: '999px',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.92rem' }}>
+                  <span style={{ color: '#37474f', fontWeight: 700 }}>{item.cumplimiento.toFixed(1)}%</span>
+                  <span style={{ color: item.diferencia >= 0 ? '#2e7d32' : '#c62828', fontWeight: 700 }}>
+                    {item.diferencia >= 0 ? '+' : ''}
+                    {formatearNumero(item.diferencia)}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 2fr) minmax(320px, 1fr)',
+            gap: '20px',
+            marginBottom: '24px',
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: '20px',
+              padding: '20px',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.07)',
+              border: '1px solid #edf7ea',
+              minHeight: 420,
+            }}
+          >
+            <div style={{ marginBottom: '16px' }}>
+              <h2 style={{ margin: 0, fontSize: '1.2rem', color: '#1b5e20' }}>Comparativo actual vs meta</h2>
+              <p style={{ margin: '6px 0 0 0', color: '#607d8b', fontSize: '0.95rem' }}>
+                Pasa el cursor sobre cada barra para ver el nivel de cumplimiento
+              </p>
+            </div>
+
+            <ResponsiveContainer width="100%" height={330}>
+              <BarChart data={datosGraficoComparativo} barCategoryGap={20}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="indicador" />
+                <YAxis />
+                <Tooltip content={<CustomTooltipComparativo />} />
+                <Legend />
+                <Bar
+                  dataKey="actual"
+                  name="Valor actual"
+                  fill="#39a900"
+                  radius={[8, 8, 0, 0]}
+                  cursor="pointer"
+                  onClick={(data: any) => {
+                    if (!data?.indicador) return;
+
+                    const match = CONFIG_INDICADORES.find((item) => item.label === data.indicador);
+                    if (match) setIndicadorActivo(match.key);
+                  }}
+                >
+                </Bar>
+                <Bar
+                  dataKey="meta"
+                  name="Meta"
+                  fill="#cfd8dc"
+                  radius={[8, 8, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: '20px',
+              padding: '20px',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.07)',
+              border: '1px solid #edf7ea',
+            }}
+          >
+            <h2 style={{ margin: 0, fontSize: '1.2rem', color: '#1b5e20' }}>Resumen del indicador activo</h2>
+
+            {indicadorActivoInfo ? (
+              <div style={{ marginTop: '18px' }}>
+                <div
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: '16px',
+                    backgroundColor: `${indicadorActivoInfo.color}18`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: indicadorActivoInfo.color,
+                    fontWeight: 800,
+                    fontSize: '1.2rem',
+                    marginBottom: '14px',
+                  }}
+                >
+                  {indicadorActivoInfo.label.charAt(0)}
+                </div>
+
+                <h3 style={{ margin: 0, color: '#263238', fontSize: '1.4rem' }}>{indicadorActivoInfo.label}</h3>
+                <p style={{ margin: '6px 0 16px 0', color: obtenerColorEstado(indicadorActivoInfo.estado), fontWeight: 700 }}>
+                  {indicadorActivoInfo.estado}
+                </p>
+
+                <div style={{ display: 'grid', gap: '12px' }}>
+                  <div>
+                    <p style={{ margin: 0, color: '#78909c', fontSize: '0.88rem' }}>Valor actual</p>
+                    <strong style={{ color: '#263238', fontSize: '1.15rem' }}>
+                      {formatearNumero(indicadorActivoInfo.actual)}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <p style={{ margin: 0, color: '#78909c', fontSize: '0.88rem' }}>Meta</p>
+                    <strong style={{ color: '#263238', fontSize: '1.15rem' }}>
+                      {formatearNumero(indicadorActivoInfo.meta)}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <p style={{ margin: 0, color: '#78909c', fontSize: '0.88rem' }}>Cumplimiento</p>
+                    <strong style={{ color: '#263238', fontSize: '1.15rem' }}>
+                      {indicadorActivoInfo.cumplimiento.toFixed(1)}%
+                    </strong>
+                  </div>
+
+                  <div>
+                    <p style={{ margin: 0, color: '#78909c', fontSize: '0.88rem' }}>Diferencia</p>
+                    <strong
+                      style={{
+                        color: indicadorActivoInfo.diferencia >= 0 ? '#2e7d32' : '#c62828',
+                        fontSize: '1.15rem',
+                      }}
+                    >
+                      {indicadorActivoInfo.diferencia >= 0 ? '+' : ''}
+                      {formatearNumero(indicadorActivoInfo.diferencia)}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p style={{ color: '#607d8b' }}>No hay información disponible.</p>
+            )}
+          </div>
+        </div>
+
+        <div
+          style={{
+            background: '#fff',
+            borderRadius: '20px',
+            padding: '20px',
+            boxShadow: '0 6px 20px rgba(0,0,0,0.07)',
+            border: '1px solid #edf7ea',
+            marginBottom: '24px',
+          }}
+        >
+          <div style={{ marginBottom: '16px' }}>
+            <h2 style={{ margin: 0, fontSize: '1.2rem', color: '#1b5e20' }}>
+              Tendencia temporal de {indicadorActivoInfo?.label ?? 'indicador'}
+            </h2>
+            <p style={{ margin: '6px 0 0 0', color: '#607d8b', fontSize: '0.95rem' }}>
+              Evolución del indicador seleccionado en el periodo actual
+            </p>
+          </div>
+
+          <ResponsiveContainer width="100%" height={320}>
+            <LineChart data={datosTendencia}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="periodo" />
+              <YAxis />
+              <Tooltip content={<CustomTooltipTendencia />} />
+              <ReferenceLine y={0} stroke="#b0bec5" />
+              <Line
+                type="monotone"
+                dataKey="valor"
+                stroke={indicadorActivoInfo?.color || '#39a900'}
+                strokeWidth={3}
+                dot={{ r: 5 }}
+                activeDot={{ r: 7 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 2fr) minmax(320px, 1fr)',
+            gap: '20px',
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: '20px',
+              padding: '20px',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.07)',
+              border: '1px solid #edf7ea',
+              overflowX: 'auto',
+            }}
+          >
+            <h2 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', color: '#1b5e20' }}>Tabla resumen</h2>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f1f8e9' }}>
+                  <th style={thStyle}>Indicador</th>
+                  <th style={thStyle}>Actual</th>
+                  <th style={thStyle}>Meta</th>
+                  <th style={thStyle}>Cumplimiento</th>
+                  <th style={thStyle}>Diferencia</th>
+                  <th style={thStyle}>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tarjetas.map((item) => (
+                  <tr key={item.key}>
+                    <td style={tdStyle}>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          width: 10,
+                          height: 10,
+                          borderRadius: '50%',
+                          backgroundColor: item.color,
+                          marginRight: 8,
+                        }}
+                      />
+                      {item.label}
+                    </td>
+                    <td style={tdStyle}>{formatearNumero(item.actual)}</td>
+                    <td style={tdStyle}>{formatearNumero(item.meta)}</td>
+                    <td style={tdStyle}>{item.cumplimiento.toFixed(1)}%</td>
+                    <td
+                      style={{
+                        ...tdStyle,
+                        color: item.diferencia >= 0 ? '#2e7d32' : '#c62828',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {item.diferencia >= 0 ? '+' : ''}
+                      {formatearNumero(item.diferencia)}
+                    </td>
+                    <td style={tdStyle}>
+                      <span
+                        style={{
+                          backgroundColor: `${obtenerColorEstado(item.estado)}18`,
+                          color: obtenerColorEstado(item.estado),
+                          padding: '6px 10px',
+                          borderRadius: '999px',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {item.estado}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: '20px',
+              padding: '20px',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.07)',
+              border: '1px solid #edf7ea',
+            }}
+          >
+            <h2 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', color: '#1b5e20' }}>Observaciones recientes</h2>
+
+            {observacionesRecientes.length > 0 ? (
+              <div style={{ display: 'grid', gap: '12px' }}>
+                {observacionesRecientes.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      padding: '14px',
+                      borderRadius: '14px',
+                      backgroundColor: '#f8fbf7',
+                      border: '1px solid #e7f3e2',
+                    }}
+                  >
+                    <p style={{ margin: '0 0 6px 0', color: '#78909c', fontSize: '0.82rem', fontWeight: 700 }}>
+                      {formatearFechaCorta(item.fecha)}
+                    </p>
+                    <p style={{ margin: 0, color: '#37474f', fontSize: '0.92rem', lineHeight: 1.5 }}>
+                      {item.observaciones}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div
+                style={{
+                  padding: '16px',
+                  borderRadius: '14px',
+                  backgroundColor: '#f8fbf7',
+                  border: '1px solid #e7f3e2',
+                  color: '#607d8b',
+                }}
+              >
+                No hay observaciones registradas por ahora.
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-    </div>
+    </div >
   );
 }
+
+const thStyle: React.CSSProperties = {
+  textAlign: 'left',
+  padding: '12px 14px',
+  color: '#2f3e46',
+  fontSize: '0.9rem',
+  borderBottom: '1px solid #dfe6e9',
+};
+
+const tdStyle: React.CSSProperties = {
+  padding: '12px 14px',
+  color: '#37474f',
+  fontSize: '0.92rem',
+  borderBottom: '1px solid #eef3f7',
+};
