@@ -81,4 +81,26 @@ export const tecnoParqueService = {
 
     return manejarRespuesta(response);
   },
+
+  async crearIndicador(data: {
+    fecha: string;
+    proyectos: number;
+    articulaciones: number;
+    visitas: number;
+    giras: number;
+    asesorias: number;
+    tipoRegistro: 'diario' | 'acumulado';
+    observaciones?: string;
+  }) {
+    const response = await fetch(`${API_URL}/indicadores/tecnoparque`, {
+      method: 'POST',
+      headers: {
+        ...obtenerHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    return manejarRespuesta(response);
+  }
 };

@@ -5,9 +5,10 @@ import Layout from '@/components/Layout'
 import Login from '@/pages/Login'
 import Register from '@/pages/Register'
 
-// Pages (lazy loading could be added later)
+// Pages
 import TecnoparqueDashboard from '@/pages/Tecnoparque/Dashboard'
 import TecnoparqueReportes from '@/pages/Tecnoparque/Reportes'
+import RegistrarIndicador from '@/pages/Tecnoparque/RegistrarIndicador'
 
 import TecnoacademiaDashboard from '@/pages/Tecnoacademia/Dashboard'
 import TecnoacademiaProyectos from '@/pages/Tecnoacademia/Proyectos'
@@ -26,17 +27,16 @@ export default function AppRoutes() {
   return (
     <HashRouter>
       <Routes>
-        {/* 🔹 Ruta inicial: login */}
         <Route path="/" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        {/* 🔹 Resto de la app con layout */}
         <Route path="/app" element={<Layout />}>
           <Route index element={<MainDashboard />} />
 
           <Route path="tecnoparque">
             <Route index element={<TecnoparqueDashboard />} />
             <Route path="reportes" element={<TecnoparqueReportes />} />
+            <Route path="registrar-indicador" element={<RegistrarIndicador />} />
           </Route>
 
           <Route path="tecnoacademia">
@@ -59,7 +59,6 @@ export default function AppRoutes() {
           </Route>
         </Route>
 
-        {/* 🔹 Página no encontrada */}
         <Route path="*" element={<div className="container">Página no encontrada</div>} />
       </Routes>
     </HashRouter>

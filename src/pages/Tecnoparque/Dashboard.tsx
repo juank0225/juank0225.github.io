@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   tecnoParqueService,
   type IndicadorTecnoParque,
@@ -125,6 +126,7 @@ function getWeekOfMonth(date: Date): number {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [vista, setVista] = useState<VistaPeriodo>('Semana');
   const [datosReales, setDatosReales] = useState<IndicadorTecnoParque[]>([]);
   const [estadisticas, setEstadisticas] = useState<EstadisticasTecnoParque | null>(null);
@@ -420,8 +422,26 @@ export default function Dashboard() {
               display: 'flex',
               gap: '10px',
               flexWrap: 'wrap',
+              alignItems: 'center',
             }}
           >
+            <button
+              onClick={() => navigate('/app/tecnoparque/registrar-indicador')}
+              style={{
+                padding: '10px 18px',
+                borderRadius: '10px',
+                border: 'none',
+                backgroundColor: '#39a900',
+                color: '#fff',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: '0.95rem',
+                boxShadow: '0 4px 12px rgba(57,169,0,0.25)',
+              }}
+            >
+              Registrar indicador
+            </button>
+
             {(['Semana', 'Mes', 'Año'] as VistaPeriodo[]).map((opcion) => (
               <button
                 key={opcion}
