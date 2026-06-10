@@ -16,12 +16,19 @@ export interface AuthResponse {
     nombre: string;
     apellido: string;
     correo: string;
+    estado?: string;
     rol: {
+      id?: number;
       nombreRol: string;
-    };
-    linea?: {
+    } | null;
+    linea: {
+      idLinea: number;
       nombreLinea: string;
-    };
+      nodo: {
+        idNodo: number;
+        nombreNodo: string;
+      } | null;
+    } | null;
   };
 }
 

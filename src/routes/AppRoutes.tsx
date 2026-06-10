@@ -20,8 +20,10 @@ import InvestigacionPublicaciones from '@/pages/Investigacion/Publicaciones'
 import InvestigacionAnalisis from '@/pages/Investigacion/Analisis'
 
 import PerfilUsuario from '@/pages/Perfil/PerfilUsuario'
-
 import MainDashboard from '@/pages/MainDashboard'
+
+import ProtectedRoute from './ProtectedRoute'
+import ProtectedNodeRoute from './ProtectedNodeRoute'
 
 export default function AppRoutes() {
   return (
@@ -30,33 +32,121 @@ export default function AppRoutes() {
         <Route path="/" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        <Route path="/app" element={<Layout />}>
-          <Route index element={<MainDashboard />} />
+        <Route
+          path="/app"
+          element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
+          <Route
+            index
+            element={
+              <ProtectedNodeRoute allowedRoles={['administrador']}>
+                <MainDashboard />
+              </ProtectedNodeRoute>
+            }
+          />
 
-          <Route path="tecnoparque">
-            <Route index element={<TecnoparqueDashboard />} />
-            <Route path="reportes" element={<TecnoparqueReportes />} />
-            <Route path="registrar-indicador" element={<RegistrarIndicador />} />
-          </Route>
+          <Route
+            path="tecnoparque"
+            element={
+              <ProtectedNodeRoute
+                allowedRoles={['administrador', 'experto']}
+                requiredNode="Tecnoparque"
+              >
+                <TecnoparqueDashboard />
+              </ProtectedNodeRoute>
+            }
+          />
 
-          <Route path="tecnoacademia">
-            <Route index element={<TecnoacademiaDashboard />} />
-            <Route path="proyectos" element={<TecnoacademiaProyectos />} />
-          </Route>
+          <Route
+            path="tecnoparque/reportes"
+            element={
+              <ProtectedNodeRoute
+                allowedRoles={['administrador', 'experto']}
+                requiredNode="Tecnoparque"
+              >
+                <TecnoparqueReportes />
+              </ProtectedNodeRoute>
+            }
+          />
 
-          <Route path="laboratorio">
-            <Route index element={<LaboratorioDashboard />} />
-          </Route>
+          <Route
+            path="tecnoparque/registrar-indicador"
+            element={
+              <ProtectedNodeRoute
+                allowedRoles={['administrador', 'experto']}
+                requiredNode="Tecnoparque"
+              >
+                <RegistrarIndicador />
+              </ProtectedNodeRoute>
+            }
+          />
 
-          <Route path="investigacion">
-            <Route index element={<InvestigacionDashboard />} />
-            <Route path="publicaciones" element={<InvestigacionPublicaciones />} />
-            <Route path="analisis" element={<InvestigacionAnalisis />} />
-          </Route>
+          <Route
+            path="tecnoacademia"
+            element={
+              <ProtectedNodeRoute allowedRoles={['administrador']}>
+                <TecnoacademiaDashboard />
+              </ProtectedNodeRoute>
+            }
+          />
 
-          <Route path="perfil">
-            <Route index element={<PerfilUsuario />} />
-          </Route>
+          <Route
+            path="tecnoacademia/proyectos"
+            element={
+              <ProtectedNodeRoute allowedRoles={['administrador']}>
+                <TecnoacademiaProyectos />
+              </ProtectedNodeRoute>
+            }
+          />
+
+          <Route
+            path="laboratorio"
+            element={
+              <ProtectedNodeRoute allowedRoles={['administrador']}>
+                <LaboratorioDashboard />
+              </ProtectedNodeRoute>
+            }
+          />
+
+          <Route
+            path="investigacion"
+            element={
+              <ProtectedNodeRoute allowedRoles={['administrador']}>
+                <InvestigacionDashboard />
+              </ProtectedNodeRoute>
+            }
+          />
+
+          <Route
+            path="investigacion/publicaciones"
+            element={
+              <ProtectedNodeRoute allowedRoles={['administrador']}>
+                <InvestigacionPublicaciones />
+              </ProtectedNodeRoute>
+            }
+          />
+
+          <Route
+            path="investigacion/analisis"
+            element={
+              <ProtectedNodeRoute allowedRoles={['administrador']}>
+                <InvestigacionAnalisis />
+              </ProtectedNodeRoute>
+            }
+          />
+
+          <Route
+            path="perfil"
+            element={
+              <ProtectedRoute>
+                <PerfilUsuario />
+              </ProtectedRoute>
+            }
+          />
         </Route>
 
         <Route path="*" element={<div className="container">Página no encontrada</div>} />

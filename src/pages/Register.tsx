@@ -4,6 +4,16 @@ import FotoTecnoparque from "../assets/FotoTecnoparque.jpg"
 
 type TipoDocumento = "CC" | "CE" | "TI" | "PASAPORTE"
 
+type Nodo = {
+  idNodo: number
+  nombreNodo: string
+}
+
+type Linea = {
+  idLinea: number
+  nombreLinea: string
+}
+
 type RegisterFormData = {
   nombre: string
   apellido: string
@@ -13,6 +23,7 @@ type RegisterFormData = {
   numDoc: string
   password: string
   confirmarPassword: string
+  nodoId: string
   lineaId: string
 }
 
@@ -26,6 +37,9 @@ export default function Register() {
   const [hover, setHover] = useState(false)
   const [focusButton, setFocusButton] = useState(false)
 
+  const [nodos, setNodos] = useState<Nodo[]>([])
+  const [lineas, setLineas] = useState<Linea[]>([])
+
   const [formData, setFormData] = useState<RegisterFormData>({
     nombre: "",
     apellido: "",
@@ -35,11 +49,31 @@ export default function Register() {
     numDoc: "",
     password: "",
     confirmarPassword: "",
+    nodoId: "",
     lineaId: "",
   })
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 100)
+
+    const cargarNodos = async () => {
+      try {
+        const response = await fetch("http://localhost:3000/nodos")
+
+        if (!response.ok) {
+          throw new Error("No se pudieron cargar los nodos")
+        }
+
+        const data = await response.json()
+        setNodos(data)
+      } catch (error) {
+        console.error("Error al cargar nodos:", error)
+        setError("No se pudieron cargar los nodos")
+      }
+    }
+
+    cargarNodos()
+
     return () => clearTimeout(timer)
   }, [])
 
@@ -47,6 +81,28 @@ export default function Register() {
     setFormData((prev) => ({ ...prev, [field]: value }))
     setError("")
     setSuccess("")
+  }
+
+  const handleNodoChange = async (value: string) => {
+    handleInputChange("nodoId", value)
+    handleInputChange("lineaId", "")
+    setLineas([])
+
+    if (!value) return
+
+    try {
+      const response = await fetch(`http://localhost:3000/lineas/nodo/${value}`)
+
+      if (!response.ok) {
+        throw new Error("No se pudieron cargar las líneas")
+      }
+
+      const data = await response.json()
+      setLineas(data)
+    } catch (error) {
+      console.error("Error al cargar líneas:", error)
+      setError("No se pudieron cargar las líneas del nodo")
+    }
   }
 
   const handleRegister = async () => {
@@ -58,6 +114,7 @@ export default function Register() {
       numDoc,
       password,
       confirmarPassword,
+      nodoId,
       lineaId,
     } = formData
 
@@ -69,6 +126,7 @@ export default function Register() {
       !numDoc ||
       !password ||
       !confirmarPassword ||
+      !nodoId ||
       !lineaId
     ) {
       setError("Debes completar todos los campos obligatorios")
@@ -289,15 +347,36 @@ export default function Register() {
           />
 
           <select
+            value={formData.nodoId}
+            onChange={(e) => handleNodoChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            style={inputStyle}
+            onFocus={handleFieldFocus}
+            onBlur={handleFieldBlur}
+          >
+            <option value="">Selecciona un nodo</option>
+            {nodos.map((nodo) => (
+              <option key={nodo.idNodo} value={nodo.idNodo}>
+                {nodo.nombreNodo}
+              </option>
+            ))}
+          </select>
+
+          <select
             value={formData.lineaId}
             onChange={(e) => handleInputChange("lineaId", e.target.value)}
             onKeyDown={handleKeyDown}
             style={inputStyle}
             onFocus={handleFieldFocus}
             onBlur={handleFieldBlur}
+            disabled={!formData.nodoId}
           >
             <option value="">Selecciona una línea</option>
-            <option value="1">Tecnoparque</option>
+            {lineas.map((linea) => (
+              <option key={linea.idLinea} value={linea.idLinea}>
+                {linea.nombreLinea}
+              </option>
+            ))}
           </select>
         </div>
 

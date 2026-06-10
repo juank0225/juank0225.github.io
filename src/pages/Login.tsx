@@ -41,7 +41,25 @@ export default function Login() {
       localStorage.setItem("token", response.access_token)
       localStorage.setItem("user", JSON.stringify(response.user))
 
-      authService.redirectToApp()
+      const rol = response.user?.rol?.nombreRol
+      const nodo = response.user?.linea?.nodo?.nombreNodo
+
+      if (rol === "administrador") {
+        navigate("/app")
+        return
+      }
+
+      if (rol === "experto") {
+        if (nodo === "Tecnoparque") {
+          navigate("/app/tecnoparque")
+          return
+        }
+
+        setError("Tu usuario no tiene un dashboard asignado")
+        return
+      }
+
+      setError("No se pudo determinar el acceso del usuario")
     } catch (err) {
       setError("Correo o contraseña incorrectos")
       console.error("Login error:", err)
